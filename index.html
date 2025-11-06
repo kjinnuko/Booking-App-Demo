@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Trainer Booking — Demo</title>
+
+  <!-- Tailwind Play CDN (good enough for demo) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- React via UMD CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <link rel="icon" href="data:,">
+  <style>
+    /* Hide number input spinners for a cleaner look */
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    input[type=number] {
+      -moz-appearance: textfield;
+    }
+  </style>
+</head>
+
+<body class="bg-slate-50 text-slate-800">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useEffect, useMemo, useState } = React;
+
+    // --- Fake data -------------------------------
+    const TRAINERS = [
+      {
+        id: 't1',
+        name: 'Alex Carter',
+        role: 'Full-Stack Web Instructor',
+        avatar: 'https://i.pravatar.cc/120?img=12',
+        bio: '10+ years in React/Node. Taught 1,500+ students to ship production apps.',
+        whatYouLearn: [
+          'Modern React patterns (hooks, context)',
+          'Node.js APIs with Express',
+          'Deploy to Replit & cloud basics',
+        ],
+        durationMins: 60,
+        price: 39,
+      },
+      {
+        id: 't2',
+        name: 'Brooke Harrison',
+        role: 'Data & Python Coach',
+        avatar: 'https://i.pravatar.cc/120?img=32',
+        bio: 'Data wrangler who loves teaching clean Python, pandas, and visualization.',
+        whatYouLearn: [
+          'Python fundamentals by building mini-apps',
+          'Working with data (pandas)',
+          'Visualization & simple dashboards',
+        ],
+        durationMins: 45,
+        price: 29,
+      },
+      {
+        id: 't3',
+        name: 'Chris Morgan',
+        role: 'UI/UX & Frontend Mentor',
+        avatar: 'https://i.pravatar.cc/120?img=15',
+        bio: 'Design-first dev focusing on accessibility and delightful UI.',
+        whatYouLearn: [
+          'Design systems & Tailwind CSS',
+          'Accessible components',
+          'Prototyping & usability checks',
+        ],
+        durationMins: 50,
+        price: 35,
+      },
+    ];
+
+    // --- Utilities -------------------------------
+    const todayISO = () => new Date().toISOString().slice(0, 10);
+
+    const storage = {
+      getUser() {
+        try { return JSON.parse(localStorage.getItem('tb_user')) || null; }
+        catch { return null; }
+      },
+      setUser(u) { localStorage.setItem('tb_user', JSON.stringify(u)); },
+      clearUser() { localStorage.removeItem('tb_user'); },
+
+      saveBooking(b) {
+        const all = storage.getBookings();
+        all.push(b);
+        localStorage.setItem('tb_bookings', JSON.stringify(all));
+      },
+      getBookings() {
+        try { return JSON.parse(localStorage.getItem('tb_bookings')) || []; }
+        catch { return []; }
+      },
+      clearBookings() { localStorage.removeItem('tb_bookings'); },
+    };
+
+    // --- Small UI Bits ---------------------------
+    const Card = ({ children, className = '' }) => (
+      <div className={`bg-white rounded-2xl shadow-sm border border-slate-200 ${className}`}>
+        {children}
+      </div>
+    );
+
+    const Pill = ({ children }) => (
+      <span className="inline-block rounded-full border px-3 py-1 text-sm border-slate-300">
+        {children}
+      </span>
+    );
+
+    const Btn = ({ children, onClick, type = 'button', variant = 'primary', disabled }) => {
+      const base = 'w-full md:w-auto inline-flex items-center justify-center rounded-xl px-4 py-2 font-medium transition disabled:opacity-50 disabled:cursor-not-allowed';
+      const styles =
+        variant === 'primary'
+          ? 'bg-slate-900 text-white hover:bg-slate-800'
+          : variant === 'ghost'
+            ? 'bg-transparent hover:bg-slate-100'
+            : 'bg-slate-200 hover:bg-slate-300';
+
+      return (
+        <button
+          type={type}
+          disabled={disabled}
+          onClick={onClick}
+          className={`${base} ${styles}`}
+        >
+          {children}
+        </button>
+      );
+    };
+
+    // --- Views ----------------------------------
+    function LoginView({ onLogin }) {
+      const [name, setName] = useState(storage.getUser()?.name || '');
+      const [error, setError] = useState('');
+
+      function handleSubmit(e) {
+        e.preventDefault();
+        if (!name.trim()) {
+          setError('Please enter your name.');
+          return;
+        }
+        const user = { name: name.trim() };
+        storage.setUser(user);
+        onLogin(user);
+      }
+
+      return (
+        <div className="max-w-lg mx-auto p-6">
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold">Welcome</h1>
+            <p className="text-slate-600">
+              Sign in with your name to explore trainers and book a session.
+            </p>
+          </div>
+
+          <Card className="p-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <label className="block">
+                <span className="text-sm font-medium">Your name</span>
+                <input
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  placeholder="e.g., Si Si Nandar Tun"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </label>
+
+              {error && <p className="text-sm text-red-600">{error}</p>}
+
+              <div className="flex gap-3">
+                <Btn type="submit">Continue</Btn>
+                <Btn
+                  variant="ghost"
+                  onClick={() => { setName(''); setError(''); }}
+                >
+                  Clear
+                </Btn>
+              </div>
+            </form>
+          </Card>
+        </div>
+      );
+    }
+
+    function TrainersView({ user, onChooseTrainer, onLogout, goBookings }) {
+      return (
+        <div className="max-w-6xl mx-auto p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-bold">
+                Hi {user.name.split(' ')[0]}, choose your trainer
+              </h2>
+              <p className="text-slate-600">
+                Browse trainer profiles and what you'll learn in their course.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <Btn variant="ghost" onClick={goBookings}>My bookings</Btn>
+              <Btn variant="ghost" onClick={onLogout}>Sign out</Btn>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-5">
+            {TRAINERS.map(t => (
+              <Card key={t.id} className="p-5 flex flex-col">
+                <div className="flex items-center gap-4">
+                  <img
+                    src={t.avatar}
+                    alt={t.name}
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
+                  <div>
+                    <h3 className="text-lg font-semibold">{t.name}</h3>
+                    <p className="text-slate-600 text-sm">{t.role}</p>
+                  </div>
+                </div>
+
+                <p className="mt-4 text-slate-700">{t.bio}</p>
+
+                <div className="mt-4 space-y-2">
+                  <p className="text-sm font-medium">You will learn:</p>
+                  <ul className="list-disc list-inside text-sm text-slate-700">
+                    {t.whatYouLearn.map((w, i) => <li key={i}>{w}</li>)}
+                  </ul>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Pill>{t.durationMins} min</Pill>
+                  <Pill>${t.price} / session</Pill>
+                </div>
+
+                <div className="mt-auto pt-4">
+                  <Btn onClick={() => onChooseTrainer(t)}>
+                    Book with {t.name.split(' ')[0]}
+                  </Btn>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function BookingView({ user, trainer, onBack, onBooked }) {
+      const [date, setDate] = useState(todayISO());
+      const [time, setTime] = useState('10:00');
+      const [notes, setNotes] = useState('');
+      const [error, setError] = useState('');
+
+      const timeSlots = useMemo(
+        () => ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'],
+        []
+      );
+
+      function submitBooking(e) {
+        e.preventDefault();
+        if (!date || !time) {
+          setError('Please choose a date and time.');
+          return;
+        }
+        const id = 'b_' + Math.random().toString(36).slice(2);
+        const booking = {
+          id,
+          user: user.name,
+          trainerId: trainer.id,
+          trainerName: trainer.name,
+          date,
+          time,
+          notes: notes.trim(),
+          createdAt: new Date().toISOString(),
+        };
+        storage.saveBooking(booking);
+        onBooked(booking);
+      }
+
+      return (
+        <div className="max-w-xl mx-auto p-6">
+          <button
+            onClick={onBack}
+            className="text-sm text-slate-600 hover:underline"
+          >
+            ← Back to trainers
+          </button>
+
+          <Card className="p-6 mt-3">
+            <div className="flex items-center gap-4">
+              <img src={trainer.avatar} className="w-14 h-14 rounded-full" />
+              <div>
+                <h3 className="text-xl font-semibold">Book {trainer.name}</h3>
+                <p className="text-slate-600 text-sm">
+                  {trainer.role} • {trainer.durationMins} min • ${trainer.price}
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={submitBooking} className="mt-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="block">
+                  <span className="text-sm font-medium">Date</span>
+                  <input
+                    type="date"
+                    min={todayISO()}
+                    value={date}
+                    onChange={e => setDate(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium">Time</span>
+                  <select
+                    value={time}
+                    onChange={e => setTime(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  >
+                    {timeSlots.map(ts => (
+                      <option key={ts} value={ts}>{ts}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="text-sm font-medium">Notes (optional)</span>
+                <textarea
+                  rows="3"
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  placeholder="Any goals or topics you want to cover"
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                ></textarea>
+              </label>
+
+              {error && <p className="text-sm text-red-600">{error}</p>}
+
+              <div className="flex items-center justify-between gap-3">
+                <Btn variant="ghost" onClick={onBack}>Cancel</Btn>
+                <Btn type="submit">Confirm booking</Btn>
+              </div>
+            </form>
+          </Card>
+        </div>
+      );
+    }
+
+    function ConfirmationView({ booking, onDone, onSeeBookings }) {
+      return (
+        <div className="max-w-lg mx-auto p-6 text-center">
+          <Card className="p-8">
+            <div className="mx-auto w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
+              <span className="text-2xl">✓</span>
+            </div>
+
+            <h3 className="text-2xl font-semibold mt-4">Booking confirmed!</h3>
+
+            <p className="text-slate-600">
+              Your session with <span className="font-medium">{booking.trainerName}</span> is scheduled for
+              <span className="font-medium"> {booking.date}</span> at
+              <span className="font-medium"> {booking.time}</span>.
+            </p>
+
+            <div className="mt-6 flex flex-col md:flex-row gap-3 justify-center">
+              <Btn onClick={onSeeBookings}>View my bookings</Btn>
+              <Btn variant="ghost" onClick={onDone}>Back to home</Btn>
+            </div>
+          </Card>
+        </div>
+      );
+    }
+
+    function MyBookingsView({ onBack }) {
+      const bookings = storage.getBookings();
+
+      return (
+        <div className="max-w-3xl mx-auto p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold">My bookings</h2>
+            <Btn variant="ghost" onClick={onBack}>Back</Btn>
+          </div>
+
+          {bookings.length === 0 ? (
+            <Card className="p-6 text-center">
+              <p className="text-slate-600">No bookings yet.</p>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {bookings.map(b => (
+                <Card key={b.id} className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">{b.trainerName}</p>
+                      <p className="text-sm text-slate-600">
+                        {b.date} • {b.time}
+                      </p>
+                    </div>
+                    <Pill>Booked</Pill>
+                  </div>
+
+                  {b.notes && (
+                    <p className="mt-2 text-sm text-slate-700">
+                      Notes: {b.notes}
+                    </p>
+                  )}
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // --- App Shell -------------------------------
+    function App() {
+      const [user, setUser] = useState(storage.getUser());
+      const [screen, setScreen] = useState(user ? 'trainers' : 'login');
+      const [selectedTrainer, setSelectedTrainer] = useState(null);
+      const [lastBooking, setLastBooking] = useState(null);
+
+      function handleLogin(u) { setUser(u); setScreen('trainers'); }
+      function handleChooseTrainer(t) { setSelectedTrainer(t); setScreen('booking'); }
+      function handleBooked(b) { setLastBooking(b); setScreen('confirmed'); }
+      function handleLogout() { storage.clearUser(); setUser(null); setScreen('login'); }
+
+      return (
+        <div>
+          {/* Header */}
+          <header className="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-slate-200">
+            <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-slate-900 text-white grid place-content-center font-bold">TB</div>
+                <span className="font-semibold">Trainer Booking</span>
+              </div>
+
+              {user && (
+                <div className="text-sm text-slate-600">
+                  Signed in as <span className="font-medium">{user.name}</span>
+                </div>
+              )}
+            </div>
+          </header>
+
+          {/* Main router */}
+          <main className="min-h-[calc(100dvh-64px)]">
+            {screen === 'login' && <LoginView onLogin={handleLogin} />}
+
+            {screen === 'trainers' && user && (
+              <TrainersView
+                user={user}
+                onChooseTrainer={handleChooseTrainer}
+                onLogout={handleLogout}
+                goBookings={() => setScreen('bookings')}
+              />
+            )}
+
+            {screen === 'booking' && user && selectedTrainer && (
+              <BookingView
+                user={user}
+                trainer={selectedTrainer}
+                onBack={() => setScreen('trainers')}
+                onBooked={handleBooked}
+              />
+            )}
+
+            {screen === 'confirmed' && lastBooking && (
+              <ConfirmationView
+                booking={lastBooking}
+                onDone={() => setScreen('trainers')}
+                onSeeBookings={() => setScreen('bookings')}
+              />
+            )}
+
+            {screen === 'bookings' && (
+              <MyBookingsView onBack={() => setScreen('trainers')} />
+            )}
+          </main>
+
+          <footer className="text-center text-xs text-slate-500 py-6">
+            Demo app — no server, data stored in your browser.
+          </footer>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+
+</html>

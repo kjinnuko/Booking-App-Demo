@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+<title>Confirm your booking</title>
+<link rel="stylesheet" href="/styles.css?v=14" />
+
+<div class="container" style="max-width: 900px">
+  <h1>Confirm your booking</h1>
+
+  <form method="POST" action="/book" class="auth-form">
+    <label class="label">Trainer</label>
+    <input id="trainer" name="trainer" class="input" readonly />
+
+    <label class="label">Class</label>
+    <input id="klass" name="klass" class="input" />
+
+    <label class="label">Price (THB)</label>
+    <input id="price" name="price" class="input" readonly />
+
+    <label class="label">Day</label>
+    <input id="date" name="date" type="date" class="input" required />
+
+    <label class="label">Time</label>
+    <select id="timeSlot" name="timeSlot" class="input" required>
+      <option value="">Choose a time</option>
+    </select>
+    <div
+      id="scheduleNote"
+      style="font-size: 13px; color: #9aa4b2; margin-top: 6px"
+    ></div>
+
+    <button id="bookBtn" class="btn" style="width: 100%; margin-top: 12px">
+      Book Now
+    </button>
+  </form>
+
+  <p style="margin-top: 10px">
+    <a href="/trainers.html">← Back to trainers</a>
+  </p>
+</div>
+
+<script src="/booking.js?v=15" defer></script>

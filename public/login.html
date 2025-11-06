@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+<title>Log In • Athlenic</title>
+<link rel="stylesheet" href="/styles.css?v=4" />
+
+<div class="container">
+  <div class="grid-2">
+    <!-- Left: Fitness center intro/biography -->
+    <section class="card bio">
+      <h1>Athlenic</h1>
+      <p>
+        Welcome back! We help busy people get strong, mobile and confident with
+        expert coaching and friendly community vibes.
+      </p>
+      <div class="hr"></div>
+      <p><b>Why train with us?</b></p>
+      <ul>
+        <li>Certified coaches for Strength, Yoga, CrossFit, Cardio & Zumba</li>
+        <li>Safe progressions for all levels</li>
+        <li>Flexible schedules and small group sizes</li>
+      </ul>
+      <div class="badges">
+        <span class="badge">Downtown • Open 6am–9pm</span>
+        <span class="badge">Free trial class</span>
+        <span class="badge">Locker & shower</span>
+      </div>
+    </section>
+
+    <!-- Right: Login form -->
+    <section class="card auth">
+      <h2 class="auth-title">Log In</h2>
+      <p class="auth-sub">Access your account to book classes</p>
+
+      <form class="auth-form" method="POST" action="/login">
+        <label class="label">Your name</label>
+        <input class="input" name="name" placeholder="eg. Alice" required />
+
+        <label class="label">Password</label>
+        <input
+          class="input"
+          type="password"
+          name="password"
+          placeholder="••••••••"
+          required
+        />
+
+        <button class="btn primary full">Log In</button>
+      </form>
+
+      <p style="margin-top: 10px">
+        No account? <a href="/signup.html">Sign up</a>
+      </p>
+    </section>
+  </div>
+</div>

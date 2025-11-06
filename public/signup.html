@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+<title>Sign Up • Athlenic</title>
+<link rel="stylesheet" href="/styles.css?v=4" />
+
+<div class="container">
+  <div class="grid-2">
+    <!-- Left: Fitness intro (same design) -->
+    <section class="card bio">
+      <h1>Start your journey</h1>
+      <p>
+        Create your account to book trainers and classes. First session includes
+        movement assessment and goal setting.
+      </p>
+      <div class="hr"></div>
+      <div class="badges">
+        <span class="badge">Beginner friendly</span>
+        <span class="badge">Personalized plan</span>
+        <span class="badge">Nutrition basics</span>
+      </div>
+    </section>
+
+    <!-- Right: Sign up form -->
+    <section class="card auth">
+      <h2 class="auth-title">Create account</h2>
+      <p class="auth-sub">It takes less than a minute</p>
+
+      <form class="auth-form" method="POST" action="/signup">
+        <label class="label">Your name</label>
+        <input class="input" name="name" placeholder="eg. Alice" required />
+
+        <label class="label">Phone number</label>
+        <input
+          class="input"
+          name="phone"
+          placeholder="+66 8X XXX XXXX"
+          required
+        />
+
+        <label class="label">Password</label>
+        <input
+          class="input"
+          type="password"
+          name="password"
+          placeholder="Choose a password"
+          required
+        />
+
+        <button class="btn primary full">Create account</button>
+      </form>
+
+      <p style="margin-top: 10px">
+        Already have an account? <a href="/login.html">Log in</a>
+      </p>
+    </section>
+  </div>
+</div>
