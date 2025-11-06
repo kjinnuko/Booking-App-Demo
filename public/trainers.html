@@ -1,17 +1,144 @@
-<!doctype html>
-<meta charset="utf-8" />
-<title>Choose your trainer</title>
-<link rel="stylesheet" href="/styles.css?v=12" />
-<div class="container">
-  <h1>Choose your trainer</h1>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Choose your trainer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-neutral-800 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+      <h1 class="text-3xl font-bold text-white mb-6">Choose your trainer</h1>
 
-  <form method="POST" action="/logout" style="margin-bottom:12px">
-    <button class="btn">Log out</button>
-  </form>
+      <div class="flex gap-4 mb-6">
+        <a
+          href="/me.html"
+          class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >My Bookings</a
+        >
+        <form method="POST" action="/logout">
+          <button
+            type="submit"
+            class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+          >
+            Log out
+          </button>
+        </form>
+      </div>
 
-  <div id="trainers"></div>
+      <div id="trainers" class="flex flex-col gap-6"></div>
 
-  <p style="margin-top: 12px"><a href="/admin">Admin</a></p>
-</div>
+      <p class="mt-6" id="admin-link" style="display: none">
+        <a href="/admin" class="text-blue-500 hover:underline">Admin</a>
+      </p>
+    </div>
 
-<script src="/trainers.js?v=3" defer></script>
+    <script>
+      let TRAINERS = [];
+
+      async function loadTrainers() {
+        try {
+          const response = await fetch("/api/trainers");
+          TRAINERS = await response.json();
+          renderTrainers();
+        } catch (err) {
+          console.error("Failed to load trainers:", err);
+        }
+      }
+
+      function thb(n) {
+        return "฿" + Number(n).toLocaleString();
+      }
+
+      function renderTrainers() {
+        const root = document.getElementById("trainers");
+        if (!root) return;
+        root.innerHTML = "";
+
+        TRAINERS.forEach((t, i) => {
+          const card = document.createElement("div");
+          card.className = "bg-neutral-100 p-6 rounded-lg shadow-md";
+
+          card.innerHTML = `
+        <h3 class="text-xl font-semibold text-gray-800 mb-2">${t.name}</h3>
+        <div class="flex flex-wrap gap-2 mb-4">
+          <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">${
+            t.level
+          }</span>
+          <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-sm">${
+            t.length
+          }</span>
+          <span class="bg-purple-100 text-purple-800 px-2 py-1 rounded text-sm">Group: ${
+            t.group_size
+          }</span>
+        </div>
+
+        <p class="text-gray-600 mb-4">${t.about}</p>
+
+        <p class="font-bold text-gray-800 mb-4">${
+          t.class
+        } — <span class="text-green-600">${thb(t.price)}</span></p>
+
+        <details class="mb-4">
+          <summary class="cursor-pointer text-blue-500 hover:underline">View class syllabus & schedule</summary>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+            <div>
+              <b>What you'll learn</b>
+              <ul class="list-disc list-inside text-gray-600">
+                ${t.syllabus.map((li) => `<li>${li}</li>`).join("")}
+              </ul>
+            </div>
+            <div>
+              <b>Schedule</b>
+              <ul class="list-disc list-inside text-gray-600">
+                ${t.schedule.map((s) => `<li>${s}</li>`).join("")}
+              </ul>
+            </div>
+          </div>
+        </details>
+
+        <button class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 book-btn" data-idx="${i}">Book ${
+            t.name
+          }</button>
+      `;
+          root.appendChild(card);
+        });
+
+        root.addEventListener("click", (e) => {
+          const btn = e.target.closest(".book-btn");
+          if (!btn) return;
+          const t = TRAINERS[btn.dataset.idx];
+          const url = `/booking.html?trainer=${encodeURIComponent(
+            t.name
+          )}&trainerId=${t.id}&class=${encodeURIComponent(t.class)}&classId=${
+            t.classId
+          }&price=${t.price}`;
+          location.href = url;
+        });
+      }
+
+      async function checkAdmin() {
+        try {
+          const response = await fetch("/api/me");
+          if (response.status === 401) {
+            window.location.href = "/login.html";
+            return;
+          }
+          if (response.ok) {
+            const user = await response.json();
+            if (user.role === "admin") {
+              document.getElementById("admin-link").style.display = "block";
+            }
+          }
+        } catch (err) {
+          console.error("Failed to check user role:", err);
+        }
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        loadTrainers();
+        checkAdmin();
+      });
+    </script>
+  </body>
+</html>

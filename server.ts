@@ -9,6 +9,8 @@ import {
   User,
   listUserBookings,
   deleteBooking,
+  listTrainers,
+  getUserById,
 } from "./db";
 
 const app = express();
@@ -45,6 +47,10 @@ declare module "express-session" {
 
 function requireLogin(req: Request, res: Response, next: NextFunction): void {
   if (!req.session.user) {
+    if (req.path.startsWith("/api/")) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
     res.redirect("/login.html");
     return;
   }
@@ -57,6 +63,9 @@ app.get("/trainers.html", requireLogin, (_req: Request, res: Response) => {
 });
 app.get("/booking.html", requireLogin, (_req: Request, res: Response) => {
   res.sendFile(path.join(__dirname, "public", "booking.html"));
+});
+app.get("/me.html", requireLogin, (_req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, "public", "me.html"));
 });
 
 app.post("/login", async (req: Request, res: Response) => {
@@ -76,6 +85,12 @@ app.post("/logout", (req: Request, res: Response) => {
   req.session.destroy(() => res.redirect("/login.html"));
 });
 
+app.get("/api/me", requireLogin, async (req: Request, res: Response) => {
+  const user = req.session.user!;
+  const userDb = await getUserById(user.id);
+  res.json(userDb);
+});
+
 app.post(
   "/book",
   requireLogin,
@@ -83,12 +98,13 @@ app.post(
     try {
       console.log("Booking request body:", req.body);
       const user = req.session.user!;
-      const trainerName = String(req.body.trainer || "").trim();
-      const klass = String(req.body.class || "").trim();
+      const trainerId = String(req.body.trainerId || "").trim();
+      const classId = String(req.body.classId || "").trim();
       const price = Number(req.body.price || 0);
 
-      const meta = TRAINERS[trainerName] || {};
-      const finalClass = klass || "Unknown";
+      const trainerName = String(req.body.trainer || "").trim();
+      const className = String(req.body.class || "").trim();
+
       const finalPrice = price || 0;
 
       const bookingDate = String(req.body.date || req.query.date || "").trim(); // e.g. "2025-11-05"
@@ -106,8 +122,8 @@ app.post(
       const record = {
         userId: user.id,
         name: user.name,
-        trainer: `${trainerName}`,
-        klass: finalClass,
+        trainerId: trainerId,
+        classId: classId,
         price: finalPrice,
         createdAt: new Date().toISOString(),
         bookedTime: bookedTimeIso,
@@ -118,7 +134,7 @@ app.post(
         id: String(id),
         name: user.name,
         trainer: trainerName,
-        class: finalClass,
+        class: className,
         price: String(finalPrice),
       }).toString();
       res.redirect(`/success.html?${q}`);
@@ -129,6 +145,11 @@ app.post(
 );
 
 app.get("/admin", requireLogin, async (_req: Request, res: Response) => {
+  const user = _req.session.user!;
+  const userDb = await getUserById(user.id);
+  if (userDb?.role !== "admin") {
+    return res.status(403).send("Forbidden");
+  }
   const rows = await listBookings();
   const rowsHtml = rows
     .map(
@@ -197,6 +218,11 @@ app.delete(
     }
   }
 );
+
+app.get("/api/trainers", async (_req: Request, res: Response) => {
+  const trainers = await listTrainers();
+  res.json(trainers);
+});
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);

@@ -37,6 +37,10 @@
       async function loadBookings() {
         try {
           const response = await fetch("/api/bookings/me");
+          if (response.status === 401) {
+            window.location.href = "/login.html";
+            return;
+          }
           if (!response.ok) {
             throw new Error("Failed to fetch bookings");
           }

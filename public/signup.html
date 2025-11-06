@@ -1,57 +1,94 @@
 <!DOCTYPE html>
-<meta charset="utf-8" />
-<title>Sign Up • Athlenic</title>
-<link rel="stylesheet" href="/styles.css?v=4" />
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign Up • Athlenic</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-neutral-800 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <!-- Left: Fitness intro -->
+        <section class="bg-neutral-900 p-6 rounded-lg shadow-md">
+          <h1 class="text-3xl font-bold text-white mb-4">Start your journey</h1>
+          <p class="text-neutral-200 mb-4">
+            Create your account to book trainers and classes. First session
+            includes movement assessment and goal setting.
+          </p>
+          <hr class="border-gray-300 mb-4" />
+          <div class="flex flex-wrap gap-2">
+            <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm"
+              >Beginner friendly</span
+            >
+            <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-sm"
+              >Personalized plan</span
+            >
+            <span
+              class="bg-purple-100 text-purple-800 px-2 py-1 rounded text-sm"
+              >Nutrition basics</span
+            >
+          </div>
+        </section>
 
-<div class="container">
-  <div class="grid-2">
-    <!-- Left: Fitness intro (same design) -->
-    <section class="card bio">
-      <h1>Start your journey</h1>
-      <p>
-        Create your account to book trainers and classes. First session includes
-        movement assessment and goal setting.
-      </p>
-      <div class="hr"></div>
-      <div class="badges">
-        <span class="badge">Beginner friendly</span>
-        <span class="badge">Personalized plan</span>
-        <span class="badge">Nutrition basics</span>
+        <!-- Right: Sign up form -->
+        <section class="bg-neutral-900 p-6 rounded-lg shadow-md">
+          <h2 class="text-2xl font-bold text-white mb-2">Create account</h2>
+          <p class="text-neutral-200 mb-6">It takes less than a minute</p>
+
+          <form class="space-y-4" method="POST" action="/signup">
+            <div>
+              <label class="block text-neutral-200 font-semibold mb-2"
+                >Your name</label
+              >
+              <input
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                name="name"
+                placeholder="eg. Alice"
+                required
+              />
+            </div>
+
+            <div>
+              <label class="block text-neutral-200 font-semibold mb-2"
+                >Phone number</label
+              >
+              <input
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                name="phone"
+                placeholder="+66 8X XXX XXXX"
+                required
+              />
+            </div>
+
+            <div>
+              <label class="block text-neutral-200 font-semibold mb-2"
+                >Password</label
+              >
+              <input
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                type="password"
+                name="password"
+                placeholder="Choose a password"
+                required
+              />
+            </div>
+
+            <button
+              class="w-full bg-yellow-500 text-white py-2 px-4 rounded-md hover:bg-yellow-600"
+            >
+              Create account
+            </button>
+          </form>
+
+          <p class="mt-4 text-neutral-200">
+            Already have an account?
+            <a href="/login.html" class="text-blue-500 hover:underline"
+              >Log in</a
+            >
+          </p>
+        </section>
       </div>
-    </section>
-
-    <!-- Right: Sign up form -->
-    <section class="card auth">
-      <h2 class="auth-title">Create account</h2>
-      <p class="auth-sub">It takes less than a minute</p>
-
-      <form class="auth-form" method="POST" action="/signup">
-        <label class="label">Your name</label>
-        <input class="input" name="name" placeholder="eg. Alice" required />
-
-        <label class="label">Phone number</label>
-        <input
-          class="input"
-          name="phone"
-          placeholder="+66 8X XXX XXXX"
-          required
-        />
-
-        <label class="label">Password</label>
-        <input
-          class="input"
-          type="password"
-          name="password"
-          placeholder="Choose a password"
-          required
-        />
-
-        <button class="btn primary full">Create account</button>
-      </form>
-
-      <p style="margin-top: 10px">
-        Already have an account? <a href="/login.html">Log in</a>
-      </p>
-    </section>
-  </div>
-</div>
+    </div>
+  </body>
+</html>

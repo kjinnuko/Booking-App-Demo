@@ -1,55 +1,92 @@
 <!DOCTYPE html>
-<meta charset="utf-8" />
-<title>Log In • Athlenic</title>
-<link rel="stylesheet" href="/styles.css?v=4" />
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Log In • Athlenic</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-neutral-800 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <!-- Left: Fitness center intro/biography -->
+        <section class="bg-neutral-900 p-6 rounded-lg shadow-md">
+          <h1 class="text-3xl font-bold text-white mb-4">Athlenic</h1>
+          <p class="text-neutral-100 mb-4">
+            Welcome back! We help busy people get strong, mobile and confident
+            with expert coaching and friendly community vibes.
+          </p>
+          <hr class="border-gray-300 mb-4" />
+          <p class="font-semibold text-neutral-100 mb-2">Why train with us?</p>
+          <ul class="list-disc list-inside text-neutral-100 mb-4">
+            <li>
+              Certified coaches for Strength, Yoga, CrossFit, Cardio & Zumba
+            </li>
+            <li>Safe progressions for all levels</li>
+            <li>Flexible schedules and small group sizes</li>
+          </ul>
+          <div class="flex flex-wrap gap-2">
+            <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm"
+              >Downtown • Open 6am–9pm</span
+            >
+            <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-sm"
+              >Free trial class</span
+            >
+            <span
+              class="bg-purple-100 text-purple-800 px-2 py-1 rounded text-sm"
+              >Locker & shower</span
+            >
+          </div>
+        </section>
 
-<div class="container">
-  <div class="grid-2">
-    <!-- Left: Fitness center intro/biography -->
-    <section class="card bio">
-      <h1>Athlenic</h1>
-      <p>
-        Welcome back! We help busy people get strong, mobile and confident with
-        expert coaching and friendly community vibes.
-      </p>
-      <div class="hr"></div>
-      <p><b>Why train with us?</b></p>
-      <ul>
-        <li>Certified coaches for Strength, Yoga, CrossFit, Cardio & Zumba</li>
-        <li>Safe progressions for all levels</li>
-        <li>Flexible schedules and small group sizes</li>
-      </ul>
-      <div class="badges">
-        <span class="badge">Downtown • Open 6am–9pm</span>
-        <span class="badge">Free trial class</span>
-        <span class="badge">Locker & shower</span>
+        <!-- Right: Login form -->
+        <section class="bg-neutral-900 p-6 rounded-lg shadow-md">
+          <h2 class="text-2xl font-bold text-white mb-2">Log In</h2>
+          <p class="text-neutral-100 mb-6">
+            Access your account to book classes
+          </p>
+
+          <form class="space-y-4" method="POST" action="/login">
+            <div>
+              <label class="block text-neutral-200 font-semibold mb-2"
+                >Your name</label
+              >
+              <input
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                name="name"
+                placeholder="eg. Alice"
+                required
+              />
+            </div>
+
+            <div>
+              <label class="block text-neutral-200 font-semibold mb-2"
+                >Password</label
+              >
+              <input
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                type="password"
+                name="password"
+                placeholder="••••••••"
+                required
+              />
+            </div>
+
+            <button
+              class="w-full bg-yellow-500 hover:bg-yellow-600 text-black py-2 px-4 rounded-md"
+            >
+              Log In
+            </button>
+          </form>
+
+          <p class="mt-4 text-gray-600">
+            No account?
+            <a href="/signup.html" class="text-blue-500 hover:underline"
+              >Sign up</a
+            >
+          </p>
+        </section>
       </div>
-    </section>
-
-    <!-- Right: Login form -->
-    <section class="card auth">
-      <h2 class="auth-title">Log In</h2>
-      <p class="auth-sub">Access your account to book classes</p>
-
-      <form class="auth-form" method="POST" action="/login">
-        <label class="label">Your name</label>
-        <input class="input" name="name" placeholder="eg. Alice" required />
-
-        <label class="label">Password</label>
-        <input
-          class="input"
-          type="password"
-          name="password"
-          placeholder="••••••••"
-          required
-        />
-
-        <button class="btn primary full">Log In</button>
-      </form>
-
-      <p style="margin-top: 10px">
-        No account? <a href="/signup.html">Sign up</a>
-      </p>
-    </section>
-  </div>
-</div>
+    </div>
+  </body>
+</html>
