@@ -230,8 +230,8 @@ export interface BookingInput {
   bookedTime?: string;
 }
 
-// helpers
-export async function addUser(
+// helpers //function แปลงรหัสผ่านเป็นString
+export async function addUser( 
   name: string,
   password: string,
   phone?: string
