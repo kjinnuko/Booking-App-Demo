@@ -14,6 +14,7 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
   try {
     await client.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`);
 
+    // Users table
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -24,6 +25,7 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
       );
     `);
 
+    // Classes table
     await client.query(`
       CREATE TABLE IF NOT EXISTS classes (
         id SERIAL PRIMARY KEY,
@@ -37,6 +39,7 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
       );
     `);
 
+    // Trainers table
     await client.query(`
       CREATE TABLE IF NOT EXISTS trainers (
         id SERIAL PRIMARY KEY,
@@ -46,6 +49,7 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
       );
     `);
 
+    // Bookings table
     await client.query(`
       CREATE TABLE IF NOT EXISTS bookings (
         id SERIAL PRIMARY KEY,
@@ -55,9 +59,23 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
         name TEXT NOT NULL,
         price INTEGER NOT NULL,
         "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
-        "bookedTime" TIMESTAMP NOT NULL DEFAULT NOW()
+        "bookedTime" TIMESTAMP NOT NULL DEFAULT NOW(),
+        status TEXT DEFAULT 'booked' CHECK (status IN ('booked', 'cancelled', 'finished'))
       );
-`);
+    `);
+
+    // Ensure "status" column exists in existing DBs
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'bookings' AND column_name = 'status'
+        ) THEN
+          ALTER TABLE bookings ADD COLUMN status TEXT DEFAULT 'booked' CHECK (status IN ('booked', 'cancelled', 'finished'));
+        END IF;
+      END $$;
+    `);
 
     // Insert classes
     const classData = [
@@ -156,13 +174,14 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
           c.level,
           c.length,
           c.group_size,
-        ]
+        ],
       );
     }
 
+    // Trainers data
     const trainerData = [
       {
-        name: "John Carter", //มี key อื่นต่อ → ต้องมี ,ไม่มี key อื่น → ไม่ต้องมี comma
+        name: "John Carter",
         class_name: "Strength",
         schedule: ["Mon 09:00–11:00", "Thu 09:00–11:00"],
       },
@@ -189,10 +208,9 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
     ];
 
     for (const t of trainerData) {
-      // Get class_id
       const classRes = await client.query(
         `SELECT id FROM classes WHERE name = $1`,
-        [t.class_name]
+        [t.class_name],
       );
       const classId = classRes.rows[0]?.id;
       if (classId) {
@@ -200,7 +218,7 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
           `INSERT INTO trainers (name, class_id, schedule)
            VALUES ($1, $2, $3)
            ON CONFLICT (name) DO NOTHING`,
-          [t.name, classId, JSON.stringify(t.schedule)]
+          [t.name, classId, JSON.stringify(t.schedule)],
         );
       }
     }
@@ -212,7 +230,9 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
   process.exit(1);
 });
 
-// types
+// =============================
+// Types
+// =============================
 export interface User {
   id: string;
   name: string;
@@ -230,23 +250,25 @@ export interface BookingInput {
   bookedTime?: string;
 }
 
-// helpers //function แปลงรหัสผ่านเป็นString
-export async function addUser( 
+// =============================
+// Helpers
+// =============================
+export async function addUser(
   name: string,
   password: string,
-  phone?: string
+  phone?: string,
 ): Promise<{ id: string }> {
   const hashed = await bcrypt.hash(String(password), 10);
   const res = await pool.query(
     `INSERT INTO users (name, password, phone) VALUES ($1, $2, $3) RETURNING id`,
-    [name, hashed, phone]
+    [name, hashed, phone],
   );
   return { id: res.rows[0].id };
 }
 
 export async function findUser(
   name: string,
-  password: string
+  password: string,
 ): Promise<User | null> {
   const res = await pool.query(`SELECT * FROM users WHERE name=$1`, [name]);
   const userRow = res.rows[0];
@@ -287,40 +309,60 @@ export async function addBooking(input: BookingInput): Promise<{ id: string }> {
       price,
       createdAt || new Date().toISOString(),
       bookedTime || new Date().toISOString(),
-    ]
+    ],
   );
   return { id: String(res.rows[0].id) };
 }
 
 export async function listBookings(): Promise<any[]> {
-  const res = await pool.query(
-    `SELECT b.id, b.name, b."createdAt", b."bookedTime", b.price, t.name as trainer, c.name as class
+  const res = await pool.query(`
+    SELECT b.id, b.name, b."createdAt", b."bookedTime", b.price, b.status, 
+           t.name as trainer, c.name as class
     FROM bookings b
     JOIN trainers t ON b."trainerId" = t.id
     JOIN classes c ON b."classId" = c.id
-    ORDER BY b."createdAt" DESC`
-  );
+    ORDER BY b."createdAt" DESC
+  `);
   return res.rows;
 }
 
 export async function listUserBookings(userId: string): Promise<any[]> {
   const res = await pool.query(
-    `SELECT b.id, b.name, b."createdAt", b."bookedTime", b.price, t.name as trainer, c.name as class
+    `
+    SELECT b.id, b.name, b."createdAt", b."bookedTime", b.price, b.status, 
+           t.name as trainer, c.name as class
     FROM bookings b
     JOIN trainers t ON b."trainerId" = t.id
     JOIN classes c ON b."classId" = c.id
     WHERE b."userId" = $1
-    ORDER BY b."createdAt" DESC`,
-    [userId]
+    ORDER BY b."createdAt" DESC
+  `,
+    [userId],
   );
   return res.rows;
 }
 
-export async function deleteBooking(id: string, userId: string): Promise<void> {
-  await pool.query(`DELETE FROM bookings WHERE id = $1 AND "userId" = $2`, [
-    id,
-    userId,
-  ]);
+export async function deleteBooking(
+  id: string,
+  userId: string,
+): Promise<number> {
+  const result = await pool.query(
+    `UPDATE bookings SET status = 'cancelled' WHERE id = $1 AND "userId" = $2`,
+    [id, userId],
+  );
+  return result.rowCount || 0;
+}
+
+export async function updateBookingStatus(
+  id: string,
+  userId: string,
+  status: string,
+): Promise<number> {
+  const result = await pool.query(
+    `UPDATE bookings SET status = $3 WHERE id = $1 AND "userId" = $2`,
+    [id, userId, status],
+  );
+  return result.rowCount || 0;
 }
 
 export async function getClassById(id: string): Promise<any | null> {
@@ -331,11 +373,12 @@ export async function getClassById(id: string): Promise<any | null> {
 
 export async function listTrainers(): Promise<any[]> {
   const res = await pool.query(`
-    SELECT t.id, t.name, t.schedule, c.name as class, c.id as classId, c.price, c.about, c.syllabus, c.level, c.length, c.group_size
+    SELECT t.id, t.name, t.schedule, c.name as class, c.id as classId, c.price, 
+           c.about, c.syllabus, c.level, c.length, c.group_size
     FROM trainers t
     JOIN classes c ON t.class_id = c.id
     ORDER BY t.name
-    `);
+  `);
   return res.rows.map((row) => ({
     id: row.id,
     name: row.name,
@@ -343,8 +386,8 @@ export async function listTrainers(): Promise<any[]> {
     classId: row.classid,
     price: row.price,
     about: row.about,
-    syllabus: row.syllabus, // already parsed
-    schedule: row.schedule, // already parsed
+    syllabus: row.syllabus,
+    schedule: row.schedule,
     level: row.level,
     length: row.length,
     group_size: row.group_size,
@@ -359,4 +402,23 @@ interface PowerBILinks {
 export async function getPowerBIEmbedLinks(): Promise<PowerBILinks | null> {
   const res = await pool.query(`SELECT * FROM links WHERE id = 1`);
   return res.rows[0] || null;
+}
+
+export async function checkExistingBooking(
+  userId: string,
+  trainerId: string,
+  bookedTime: string,
+): Promise<any | null> {
+  const res = await pool.query(
+    `SELECT b.id, b."bookedTime", t.name as trainer, c.name as class
+     FROM bookings b
+     JOIN trainers t ON b."trainerId" = t.id
+     JOIN classes c ON b."classId" = c.id
+     WHERE b."userId" = $1 
+     AND b."trainerId" = $2 
+     AND b."bookedTime" = $3
+     AND b.status = 'booked'`,
+    [userId, trainerId, bookedTime],
+  );
+  return res.rows.length > 0 ? res.rows[0] : null;
 }
