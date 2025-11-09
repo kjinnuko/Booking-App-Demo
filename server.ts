@@ -271,6 +271,61 @@ app.delete(
     }
   }
 );
+//เพิ่มเติม
+
+// ✅ เปลี่ยนสถานะเป็น finished โดยเฉพาะ
+app.patch(
+  "/api/bookings/:id/finish",
+  requireLogin,
+  async (req: Request, res: Response) => {
+    try {
+      const bookingId = req.params.id;
+      const userId = req.user!.id;
+
+      if (!bookingId) {
+        return res.status(400).json({ error: "Booking ID is required" });
+      }
+
+      const rowCount = await updateBookingStatus(bookingId, userId, "finished");
+      if (rowCount === 0) {
+        return res.status(404).json({ error: "Booking not found or not allowed" });
+      }
+      res.json({ message: "Booking finished" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to finish booking" });
+    }
+  }
+);
+
+// ✅ เปลี่ยนสถานะทั่วไป (booked / cancelled / finished)
+app.patch(
+  "/api/bookings/:id/status",
+  requireLogin,
+  async (req: Request, res: Response) => {
+    try {
+      const bookingId = req.params.id;
+      const userId = req.user!.id;
+      const { status } = req.body as { status?: string };
+
+      if (!bookingId || !status) {
+        return res.status(400).json({ error: "Booking ID and status are required" });
+      }
+      if (!["booked", "cancelled", "finished"].includes(status)) {
+        return res.status(400).json({ error: "Invalid status" });
+      }
+
+      const rowCount = await updateBookingStatus(bookingId, userId, status);
+      if (rowCount === 0) {
+        return res.status(404).json({ error: "Booking not found or not allowed" });
+      }
+      res.json({ message: "Booking status updated", status });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to update booking status" });
+    }
+  }
+);
 
 app.get("/api/trainers", async (_req: Request, res: Response) => {
   const trainers = await listTrainers();
