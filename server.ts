@@ -52,7 +52,7 @@ function requireLogin(req: Request, res: Response, next: NextFunction): void {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    res.redirect("/login.html");
+    res.redirect("/index.html");
     return;
   }
   next();
