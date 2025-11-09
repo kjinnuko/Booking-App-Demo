@@ -1,5 +1,5 @@
 import express, { Request, Response, NextFunction } from "express";
-import cookieSession from "cookie-session";
+import session from "express-session";
 import path from "path";
 import {
   addUser,
@@ -15,28 +15,39 @@ import {
 } from "./db";
 
 const app = express();
-const publicDir = path.join(process.cwd(), "public");
 
-// ---------- Middlewares ----------
+// Prices (THB)
+const TRAINERS: Record<string, { class: string; price: number }> = {
+  "John Carter": { class: "Strength", price: 1100 },
+  "Sophia Miller": { class: "Yoga & Flexibility", price: 1300 },
+  "Michael Brown": { class: "Cardio Fitness", price: 1800 },
+  "Emma Wilson": { class: "CrossFit", price: 2000 },
+  "Daniel Smith": { class: "Zumba & Dance", price: 1500 },
+};
+
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-
-// ✅ ใช้ cookie-session แทน express-session
 app.use(
-  cookieSession({
-    name: "sess",
-    keys: [process.env.SESSION_KEY || "dev-key"],
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 วัน
+  session({
+    secret: "fitness-secret-key",
+    resave: false,
+    saveUninitialized: true,
   })
 );
+app.use(express.static(path.join(__dirname, "public")));
 
-// Static ต้องมาก่อน routes
-app.use(express.static(publicDir));
+declare module "express-session" {
+  interface SessionData {
+    user?: {
+      id: string;
+      name: string;
+      phone?: string;
+    };
+  }
+}
 
-// ---------- Helpers ----------
 function requireLogin(req: Request, res: Response, next: NextFunction): void {
-  const s = req.session as any; // แคสต์กัน TS ง่ายๆ
-  if (!s?.user) {
+  if (!req.session.user) {
     if (req.path.startsWith("/api/")) {
       res.status(401).json({ error: "Unauthorized" });
       return;
@@ -47,33 +58,22 @@ function requireLogin(req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
-// ---------- Pages ----------
-app.get("/", (_req, res) => {
-  res.sendFile(path.join(publicDir, "login.html"));
-});
-
+app.get("/", (_req: Request, res: Response) => res.redirect("/login.html"));
 app.get("/trainers.html", requireLogin, (_req: Request, res: Response) => {
-  res.sendFile(path.join(publicDir, "trainers.html"));
+  res.sendFile(path.join(__dirname, "public", "trainers.html"));
 });
 app.get("/booking.html", requireLogin, (_req: Request, res: Response) => {
-  res.sendFile(path.join(publicDir, "booking.html"));
+  res.sendFile(path.join(__dirname, "public", "booking.html"));
 });
 app.get("/me.html", requireLogin, (_req: Request, res: Response) => {
-  res.sendFile(path.join(publicDir, "me.html"));
+  res.sendFile(path.join(__dirname, "public", "me.html"));
 });
 
-// ทดสอบเสิร์ฟไฟล์
-app.get("/probe.txt", (_req, res) => {
-  res.sendFile(path.join(publicDir, "probe.txt"));
-});
-
-// ---------- Auth ----------
 app.post("/login", async (req: Request, res: Response) => {
   const { name, password } = req.body as { name: string; password: string };
   const user = await findUser(String(name).trim(), String(password).trim());
   if (user) {
-    const s = req.session as any;
-    s.user = { id: user.id, name: user.name, phone: user.phone };
+    req.session.user = { id: user.id, name: user.name, phone: user.phone };
     res.redirect("/trainers.html");
   } else {
     res
@@ -83,26 +83,22 @@ app.post("/login", async (req: Request, res: Response) => {
 });
 
 app.post("/logout", (req: Request, res: Response) => {
-  // ✅ cookie-session ลบ session โดย set เป็น null
-  req.session = null as any;
-  res.redirect("/login.html");
+  req.session.destroy(() => res.redirect("/login.html"));
 });
 
 app.get("/api/me", requireLogin, async (req: Request, res: Response) => {
-  const s = req.session as any;
-  const userDb = await getUserById(s.user.id);
+  const user = req.session.user!;
+  const userDb = await getUserById(user.id);
   res.json(userDb);
 });
 
-// ---------- Booking ----------
 app.post(
   "/book",
   requireLogin,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const s = req.session as any;
-      const user = s.user as { id: string; name: string };
-
+      console.log("Booking request body:", req.body);
+      const user = req.session.user!;
       const trainerId = String(req.body.trainerId || "").trim();
       const classId = String(req.body.classId || "").trim();
       const price = Number(req.body.price || 0);
@@ -113,7 +109,9 @@ app.post(
       const finalPrice = price || 0;
 
       const bookingDate = String(req.body.date || req.query.date || "").trim(); // e.g. "2025-11-05"
-      const timeSlotRaw = String(req.body.timeSlot || req.query.timeSlot || "").trim(); // e.g. "13:30–15:00"
+      const timeSlotRaw = String(
+        req.body.timeSlot || req.query.timeSlot || ""
+      ).trim(); // e.g. "13:30–15:00"
       const startMatch = timeSlotRaw.match(/\d{1,2}:\d{2}/); // finds first "HH:MM"
       let bookedTimeIso = new Date().toISOString(); // fallback
       if (bookingDate && startMatch) {
@@ -125,8 +123,8 @@ app.post(
       const record = {
         userId: user.id,
         name: user.name,
-        trainerId,
-        classId,
+        trainerId: trainerId,
+        classId: classId,
         price: finalPrice,
         createdAt: new Date().toISOString(),
         bookedTime: bookedTimeIso,
@@ -147,10 +145,9 @@ app.post(
   }
 );
 
-// ---------- Admin ----------
 app.get("/admin", requireLogin, async (_req: Request, res: Response) => {
-  const s = _req.session as any;
-  const userDb = await getUserById(s.user.id);
+  const user = _req.session.user!;
+  const userDb = await getUserById(user.id);
   if (userDb?.role !== "admin") {
     return res.status(403).send("Forbidden");
   }
@@ -183,7 +180,9 @@ app.get("/admin", requireLogin, async (_req: Request, res: Response) => {
       <p class="mb-4">
         <a href="/trainers.html" class="text-blue-500 hover:underline">← Back to Trainers</a>
       </p>
-      <button onclick="window.open('${powerBILink?.link}', '_blank')" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mb-6">
+      <button onclick="window.open('${
+        powerBILink?.link
+      }', '_blank')" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mb-6">
         Open Power BI
       </button>
       <div class="overflow-x-auto">
@@ -199,7 +198,10 @@ app.get("/admin", requireLogin, async (_req: Request, res: Response) => {
             </tr>
           </thead>
           <tbody>
-            ${rowsHtml || "<tr><td colspan='6' class='border px-4 py-2 text-center'>No bookings yet</td></tr>"}
+            ${
+              rowsHtml ||
+              "<tr><td colspan='6' class='border px-4 py-2 text-center'>No bookings yet</td></tr>"
+            }
           </tbody>
         </table>
       </div>
@@ -208,53 +210,79 @@ app.get("/admin", requireLogin, async (_req: Request, res: Response) => {
   </html>`);
 });
 
-// ---------- APIs ----------
 app.get("/api/bookings", requireLogin, async (_req: Request, res: Response) => {
   const rows = await listBookings();
   res.json(rows);
 });
 
-app.get("/api/bookings/me", requireLogin, async (req: Request, res: Response) => {
-  const s = req.session as any;
-  const rows = await listUserBookings(s.user.id);
-  res.json(rows);
-});
-
-app.delete("/api/bookings/:id", requireLogin, async (req: Request, res: Response) => {
-  try {
-    const bookingId = req.params.id;
-    const s = req.session as any;
-    const userId = s.user.id;
-    if (!bookingId) {
-      return res.status(400).json({ error: "Booking ID is required" });
-    }
-    await deleteBooking(bookingId, userId);
-    res.json({ message: "Booking cancelled" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to cancel booking" });
+app.get(
+  "/api/bookings/me",
+  requireLogin,
+  async (req: Request, res: Response) => {
+    const user = req.session.user!;
+    const rows = await listUserBookings(user.id);
+    res.json(rows);
   }
-});
+);
+
+app.delete(
+  "/api/bookings/:id",
+  requireLogin,
+  async (req: Request, res: Response) => {
+    try {
+      const bookingId = req.params.id;
+      const userId = req.session.user!.id;
+      if (!bookingId) {
+        return res.status(400).json({ error: "Booking ID is required" });
+      }
+      // Assume db has a deleteBooking function
+      await deleteBooking(bookingId, userId);
+      res.json({ message: "Booking cancelled" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to cancel booking" });
+    }
+  }
+);
 
 app.get("/api/trainers", async (_req: Request, res: Response) => {
   const trainers = await listTrainers();
   res.json(trainers);
 });
 
-// Error handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);
   res.status(500).send("Server error");
 });
 
-// ---------- Export for Vercel ----------
-export default app;
+app.post("/signup", async (req: Request, res: Response) => {
+  console.log("Signup request body:", req.body);
+  try {
+    const name = String(req.body.name || "").trim();
+    const password = String(req.body.password || "").trim();
+    const phone = String(req.body.phone || "").trim();
 
-// ---------- (เลือกได้) รันโลคัลเท่านั้น ----------
-// ถ้าคุณอยากรัน local: NODE_ENV=development npm run dev
-if (!process.env.VERCEL && process.env.NODE_ENV !== "production") {
-  const port = parseInt(process.env.PORT || "3000", 10);
-  app.listen(port, "0.0.0.0", () => {
-    console.log(`✅ Server running on http://localhost:${port}`);
-  });
-}
+    if (!name || !password || !phone) {
+      return res
+        .status(400)
+        .send(
+          "Name, password, and phone are required. <a href='/signup.html'>Back</a>"
+        );
+    }
+
+    await addUser(name, password, phone);
+    res.redirect("/login.html");
+  } catch (e) {
+    console.error(e);
+    res
+      .status(400)
+      .send(
+        "Sign-up failed (user may already exist). <a href='/signup.html'>Back</a>"
+      );
+  }
+});
+
+const port = parseInt(process.env.PORT || "3000", 10);
+app.listen(port, "0.0.0.0", () => {
+  console.log(`✅ Server running on port ${port}`);
+});
