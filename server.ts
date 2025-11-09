@@ -52,13 +52,13 @@ function requireLogin(req: Request, res: Response, next: NextFunction): void {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    res.redirect("/index.html");
+    res.redirect("/login.html");
     return;
   }
   next();
 }
 
-app.get("/", (_req: Request, res: Response) => res.redirect("/login.html"));
+app.get("/", (_req: Request, res: Response) => res.redirect("/index.html"));
 app.get("/trainers.html", requireLogin, (_req: Request, res: Response) => {
   res.sendFile(path.join(__dirname, "public", "trainers.html"));
 });
