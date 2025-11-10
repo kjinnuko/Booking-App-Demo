@@ -358,6 +358,15 @@ export async function listTrainers(): Promise<any[]> {
   });
 }
 
+// NEW: คืนรายการคลาสทั้งหมด
+export async function listClasses(): Promise<any[]> {
+  const res = await pool.query(`
+    SELECT id, name, price, about, syllabus, level, length, group_size
+    FROM classes
+    ORDER BY id
+  `);
+  return res.rows;
+}
 
 interface PowerBILinks {
   id: number;
