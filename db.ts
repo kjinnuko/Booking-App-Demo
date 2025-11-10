@@ -391,7 +391,9 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
   try {
     await client.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`);
 
+    // ==========================
     // Users table
+    // ==========================
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -402,7 +404,24 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
       );
     `);
 
+    // CHANGED: ensure email column exists (optional unique when NOT NULL)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='users' AND column_name='email'
+        ) THEN
+          ALTER TABLE users ADD COLUMN email TEXT;
+          CREATE UNIQUE INDEX IF NOT EXISTS users_email_key
+            ON users(email) WHERE email IS NOT NULL;
+        END IF;
+      END $$;
+    `);
+
+    // ==========================
     // Classes table
+    // ==========================
     await client.query(`
       CREATE TABLE IF NOT EXISTS classes (
         id SERIAL PRIMARY KEY,
@@ -416,17 +435,39 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
       );
     `);
 
-    // Trainers table
+    // ==========================
+    // Trainers table  (NO class_id)
+    // ==========================
+    // CHANGED: trainers ไม่ผูก class แล้ว → ไม่มีคอลัมน์ class_id
     await client.query(`
       CREATE TABLE IF NOT EXISTS trainers (
         id SERIAL PRIMARY KEY,
         name TEXT UNIQUE NOT NULL,
-        class_id INTEGER REFERENCES classes(id),
         schedule JSONB NOT NULL
       );
     `);
 
+    // CHANGED: ถ้าฐานข้อมูลเก่ายังมีคอลัมน์ class_id ให้ลบทิ้งพร้อม FK
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'trainers' AND column_name = 'class_id'
+        ) THEN
+          BEGIN
+            ALTER TABLE trainers DROP CONSTRAINT IF EXISTS trainers_class_id_fkey;
+          EXCEPTION WHEN undefined_object THEN
+            -- ignore
+          END;
+          ALTER TABLE trainers DROP COLUMN IF EXISTS class_id;
+        END IF;
+      END $$;
+    `);
+
+    // ==========================
     // Bookings table
+    // ==========================
     await client.query(`
       CREATE TABLE IF NOT EXISTS bookings (
         id SERIAL PRIMARY KEY,
@@ -441,7 +482,7 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
       );
     `);
 
-    // Ensure "status" column exists in existing DBs
+    // Ensure "status" column exists in existing DBs (เผื่อ DB เก่า)
     await client.query(`
       DO $$
       BEGIN
@@ -449,10 +490,15 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
           SELECT 1 FROM information_schema.columns 
           WHERE table_name = 'bookings' AND column_name = 'status'
         ) THEN
-          ALTER TABLE bookings ADD COLUMN status TEXT DEFAULT 'booked' CHECK (status IN ('booked', 'cancelled', 'finished'));
+          ALTER TABLE bookings ADD COLUMN status TEXT DEFAULT 'booked'
+            CHECK (status IN ('booked', 'cancelled', 'finished'));
         END IF;
       END $$;
     `);
+
+    // ==========================
+    // Seed data
+    // ==========================
 
     // Insert classes
     const classData = [
@@ -555,49 +601,23 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
       );
     }
 
-    // Trainers data
+    // CHANGED: Trainers data (NO class_name, NO coupling)
     const trainerData = [
-      {
-        name: "John Carter",
-        class_name: "Strength",
-        schedule: ["Mon 09:00–11:00", "Thu 09:00–11:00"],
-      },
-      {
-        name: "Sophia Miller",
-        class_name: "Yoga & Flexibility",
-        schedule: ["Tue 11:30–13:00", "Fri 11:30–13:00"],
-      },
-      {
-        name: "Michael Brown",
-        class_name: "Cardio Fitness",
-        schedule: ["Wed 13:30–15:00", "Sat 13:30–15:00"],
-      },
-      {
-        name: "Emma Wilson",
-        class_name: "CrossFit",
-        schedule: ["Thu 15:30–17:00", "Sun 15:30–17:00"],
-      },
-      {
-        name: "Daniel Smith",
-        class_name: "Zumba & Dance",
-        schedule: ["Fri 17:30–19:00", "Sun 17:30–19:00"],
-      },
+      { name: "John Carter",   schedule: ["Mon 09:00–11:00", "Thu 09:00–11:00"] },
+      { name: "Sophia Miller", schedule: ["Tue 11:30–13:00", "Fri 11:30–13:00"] },
+      { name: "Michael Brown", schedule: ["Wed 13:30–15:00", "Sat 13:30–15:00"] },
+      { name: "Emma Wilson",   schedule: ["Thu 15:30–17:00", "Sun 15:30–17:00"] },
+      { name: "Daniel Smith",  schedule: ["Fri 17:30–19:00", "Sun 17:30–19:00"] },
     ];
 
+    // CHANGED: insert trainers with (name, schedule) only
     for (const t of trainerData) {
-      const classRes = await client.query(
-        `SELECT id FROM classes WHERE name = $1`,
-        [t.class_name],
+      await client.query(
+        `INSERT INTO trainers (name, schedule)
+         VALUES ($1, $2)
+         ON CONFLICT (name) DO NOTHING`,
+        [t.name, JSON.stringify(t.schedule)],
       );
-      const classId = classRes.rows[0]?.id;
-      if (classId) {
-        await client.query(
-          `INSERT INTO trainers (name, class_id, schedule)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (name) DO NOTHING`,
-          [t.name, classId, JSON.stringify(t.schedule)],
-        );
-      }
     }
   } finally {
     client.release();
@@ -614,6 +634,7 @@ export interface User {
   id: string;
   name: string;
   phone: string;
+  email?: string; // CHANGED: optional (อาจยังไม่ได้เก็บ)
   role: string;
 }
 
@@ -634,8 +655,10 @@ export async function addUser(
   name: string,
   password: string,
   phone?: string,
+  // คุณสามารถเพิ่ม email?: string ถ้าจะรับจากหน้า signup
 ): Promise<{ id: string }> {
   const hashed = await bcrypt.hash(String(password), 10);
+  // CHANGED (optional): ถ้ารับ email จาก form ให้ปรับ INSERT เพิ่มคอลัมน์ email ด้วย
   const res = await pool.query(
     `INSERT INTO users (name, password, phone) VALUES ($1, $2, $3) RETURNING id`,
     [name, hashed, phone],
@@ -656,6 +679,7 @@ export async function findUser(
     id: userRow.id,
     name: userRow.name,
     phone: userRow.phone,
+    email: userRow.email, // CHANGED: รองรับ email
     role: userRow.role,
   };
 }
@@ -668,6 +692,7 @@ export async function getUserById(id: string): Promise<User | null> {
     id: userRow.id,
     name: userRow.name,
     phone: userRow.phone,
+    email: userRow.email, // CHANGED
     role: userRow.role,
   };
 }
@@ -723,6 +748,7 @@ export async function deleteBooking(
   id: string,
   userId: string,
 ): Promise<number> {
+  // CHANGED: เปลี่ยนเป็น soft-cancel (update status) ถ้าคุณต้องการ hard delete ใช้ DELETE แทน
   const result = await pool.query(
     `UPDATE bookings SET status = 'cancelled' WHERE id = $1 AND "userId" = $2`,
     [id, userId],
@@ -749,25 +775,16 @@ export async function getClassById(id: string): Promise<any | null> {
 }
 
 export async function listTrainers(): Promise<any[]> {
+  // CHANGED: คืนเฉพาะ id, name, schedule (ไม่ผูก class อีกต่อไป)
   const res = await pool.query(`
-    SELECT t.id, t.name, t.schedule, c.name as class, c.id as classId, c.price, 
-           c.about, c.syllabus, c.level, c.length, c.group_size
-    FROM trainers t
-    JOIN classes c ON t.class_id = c.id
-    ORDER BY t.name
+    SELECT id, name, schedule
+    FROM trainers
+    ORDER BY name
   `);
   return res.rows.map((row) => ({
     id: row.id,
     name: row.name,
-    class: row.class,
-    classId: row.classid,
-    price: row.price,
-    about: row.about,
-    syllabus: row.syllabus,
     schedule: row.schedule,
-    level: row.level,
-    length: row.length,
-    group_size: row.group_size,
   }));
 }
 
@@ -792,10 +809,11 @@ export async function checkExistingBooking(
      JOIN trainers t ON b."trainerId" = t.id
      JOIN classes c ON b."classId" = c.id
      WHERE b."userId" = $1 
-     AND b."trainerId" = $2 
-     AND b."bookedTime" = $3
-     AND b.status = 'booked'`,
+       AND b."trainerId" = $2 
+       AND b."bookedTime" = $3
+       AND b.status = 'booked'`,
     [userId, trainerId, bookedTime],
   );
   return res.rows.length > 0 ? res.rows[0] : null;
 }
+
