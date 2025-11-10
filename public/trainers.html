@@ -61,7 +61,7 @@
 
           card.innerHTML = `
           <p class="text-gray-1200 mb-6">
-        <span class="font-bold text-xl">${t.class}</span>
+        <span class="font-bold text-xl">${t.class} —
        <span class="text-green-800">${thb(t.price)}</span>
    </p>
   <!--เอาชื่อเทรนเนอร์ออก-->
@@ -91,6 +91,7 @@
             </div>
             <div>
 <!--แก้ลบตารางเวลาตรงview class-->
+              </ul>
             </div>
           </div>
         </details>
@@ -99,7 +100,7 @@
       `;
           root.appendChild(card);
         });
-        //Book Class
+        <!--Book Class-->
         root.addEventListener("click", (e) => {
           const btn = e.target.closest(".book-btn");
           if (!btn) return;
