@@ -12,6 +12,7 @@ import {
   listTrainers,
   getUserById,
   getPowerBIEmbedLinks,
+  listClasses,
 } from "./db";
 
 const app = express();
@@ -292,7 +293,7 @@ app.post("/signup", async (req: Request, res: Response) => {
       return res
         .status(400)
         .send(
-          "Name, password, and phone are required. <a href='/signup.html'>Back</a>"
+          "Name, password, and email, and phone are required.” <a href='/signup.html'>Back</a>"
         );
     }
 
@@ -307,6 +308,18 @@ app.post("/signup", async (req: Request, res: Response) => {
       );
   }
 });
+
+// NEW: ให้หน้า HTML ดึงรายการคลาสได้โดยตรง
+app.get("/api/classes", async (_req: Request, res: Response) => {
+  try {
+    const rows = await listClasses();
+    res.json(rows);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "failed to load classes" });
+  }
+});
+
 
 const port = parseInt(process.env.PORT || "3000", 10);
 app.listen(port, "0.0.0.0", () => {
