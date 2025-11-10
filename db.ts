@@ -330,24 +330,29 @@ export async function getClassById(id: string): Promise<any | null> {
 }
 
 export async function listTrainers(): Promise<any[]> {
-  const res = await pool.query(`
-    SELECT t.id, t.name, t.schedule, c.name as class, c.id as classId, c.price, c.about, c.syllabus, c.level, c.length, c.group_size
-    FROM trainers t
-    ORDER BY t.name
-    `);
-  return res.rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    class: row.class,
-    classId: row.classid,
-    price: row.price,
-    about: row.about,
-    syllabus: row.syllabus, // already parsed
-    schedule: row.schedule, // already parsed
-    level: row.level,
-    length: row.length,
-    group_size: row.group_size,
-  }));
+  const trainerRes = await pool.query(`
+    SELECT id, name, schedule FROM trainers ORDER BY name
+  `);
+  const classRes = await pool.query(`
+    SELECT id, name, price, about, syllabus, level, length, group_size FROM classes
+  `);
+  const classMap = new Map(classRes.rows.map(c => [c.id, c]));
+
+  return trainerRes.rows.map((t) => {
+  const c = classMap.get(t.class_id); 
+    return {
+      id: t.id,
+      name: t.name,
+      schedule: t.schedule,
+      class: c?.name ?? null,
+      classId: c?.id ?? null,
+      price: c?.price ?? null,
+      about: c?.about ?? null,
+      syllabus: c?.syllabus ?? null,
+      level: c?.level ?? null,
+      length: c?.length ?? null,
+      group_size: c?.group_size ?? null,
+  });
 }
 
 interface PowerBILinks {
