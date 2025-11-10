@@ -201,7 +201,7 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
           `INSERT INTO trainers (name, schedule)
            VALUES ($1, $2)
            ON CONFLICT (name) DO NOTHING`,
-          [t.name, classId, JSON.stringify(t.schedule)]
+          [t.name, JSON.stringify(t.schedule)]
         );
       }
     }
