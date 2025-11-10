@@ -285,9 +285,10 @@ app.post("/signup", async (req: Request, res: Response) => {
   try {
     const name = String(req.body.name || "").trim();
     const password = String(req.body.password || "").trim();
+    const email = String(req.body.phone || "").trim();
     const phone = String(req.body.phone || "").trim();
 
-    if (!name || !password || !phone) {
+    if (!name || !password || !email || !phone) {
       return res
         .status(400)
         .send(
@@ -295,7 +296,7 @@ app.post("/signup", async (req: Request, res: Response) => {
         );
     }
 
-    await addUser(name, password, phone);
+    await addUser(name, password, email, phone);
     res.redirect("/login.html");
   } catch (e) {
     console.error(e);
