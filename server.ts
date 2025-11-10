@@ -1,368 +1,200 @@
-import express, { Request, Response, NextFunction } from "express";
+import express from "express";
+import cors from "cors";
 import session from "express-session";
-import path from "path";
+
 import {
   addUser,
   findUser,
+  getUserById,
   addBooking,
   listBookings,
   listUserBookings,
   deleteBooking,
   updateBookingStatus,
+  getClassById,
   listTrainers,
-  getUserById,
-  getPowerBIEmbedLinks,
-  checkExistingBooking,
+  User,
 } from "./db";
 
-const app = express();
-const publicDir = path.join(process.cwd(), "public");
-
-app.set("trust proxy", 1);
-
-// --- Session setup ---
-const SESSION_SECRET = process.env.SESSION_SECRET || "replace-this-secret";
-app.use(
-  session({
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: true,
-    proxy: true,
-    cookie: {
-      secure: "auto",
-      httpOnly: true,
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    },
-  }),
-);
-
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
-app.use(express.static(publicDir));
-
-// --- Extend session typing ---
+// Extend Session type
 declare module "express-session" {
   interface SessionData {
-    user?: { id: string; name: string; phone?: string; role?: string };
+    user?: User;
   }
 }
 
-// --- Middleware ---
-function requireLogin(req: Request, res: Response, next: NextFunction): void {
-  if (!req.session.user) {
-    if (req.path.startsWith("/api/")) {
-      res.status(401).json({ error: "Unauthorized" });
-    } else {
-      res.redirect("/login.html");
-    }
-    return;
-  }
-  next();
-}
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-// --- Routes ---
-app.get("/", (_req, res) => res.redirect("/login.html"));
-
-app.get("/trainers.html", requireLogin, (_req, res) =>
-  res.sendFile(path.join(publicDir, "trainers.html")),
-);
-app.get("/booking.html", requireLogin, (_req, res) =>
-  res.sendFile(path.join(publicDir, "booking.html")),
-);
-app.get("/me.html", requireLogin, (_req, res) =>
-  res.sendFile(path.join(publicDir, "me.html")),
-);
-app.get("/probe.txt", (_req, res) =>
-  res.sendFile(path.join(publicDir, "probe.txt")),
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "dev-secret",
+    resave: false,
+    saveUninitialized: false,
+    cookie: { sameSite: "lax" },
+  })
 );
 
-// --- Auth ---
-app.post("/login", async (req: Request, res: Response) => {
-  const { name, password } = req.body as { name: string; password: string };
-  const user = await findUser(String(name).trim(), String(password).trim());
+const asString = (v: any, msg: string) => {
+  if (typeof v === "string" && v.trim() !== "") return v;
+  throw new Error("Bad request: " + msg);
+};
 
-  if (!user) {
-    return res
-      .status(401)
-      .send("Invalid name or password. <a href='/login.html'>Back</a>");
-  }
-
-  req.session.user = {
-    id: user.id,
-    name: user.name,
-    phone: user.phone,
-    email: user.email,
-    role: user.role,
-  };
-
-  res.redirect("/trainers.html");
-});
-app.post("/ABOUT", (_req: Request, res: Response) => {
-   req.session.destroy(() => res.redirect("/About.html"));
-});
-app.post("/logout", (req: Request, res: Response) => {
-  req.session.destroy(() => res.redirect("/login.html"));
+// =============================
+// HEALTH
+// =============================
+app.get("/health", (_req, res) => {
+  res.send("ok");
 });
 
-app.post("/signup", async (req: Request, res: Response) => {
-  console.log("Signup request body:", req.body);
+// =============================
+// AUTH
+// =============================
+app.post("/api/register", async (req, res) => {
   try {
-    const name = String(req.body.name || "").trim();
-    const password = String(req.body.password || "").trim();
-    const phone = String(req.body.phone || "").trim();
+    const name = asString(req.body.name, "missing name");
+    const password = asString(req.body.password, "missing password");
+    const email = typeof req.body.email === "string" ? req.body.email : undefined;
+    const phone = typeof req.body.phone === "string" ? req.body.phone : undefined;
 
-    if (!name || !password || !phone) {
-      return res
-        .status(400)
-        .send(
-          "Name, password, and phone are required. <a href='/signup.html'>Back</a>",
-        );
-    }
+    const { id } = await addUser(name, password, phone, email);
 
-    await addUser(name, password, phone);
-    res.redirect("/login.html");
-  } catch (e) {
-    console.error(e);
-    res
-      .status(400)
-      .send(
-        "Sign-up failed (user may already exist). <a href='/signup.html'>Back</a>",
-      );
+    res.json({ id });
+  } catch (e: any) {
+    res.status(400).send(e.message);
   }
 });
 
-// --- User info ---
-app.get("/api/me", requireLogin, async (req: Request, res: Response) => {
-  const user = req.session.user!;
-  const userDb = await getUserById(user.id);
-  res.json(userDb);
+app.post("/api/login", async (req, res) => {
+  try {
+    const name = asString(req.body.name, "missing name");
+    const password = asString(req.body.password, "missing password");
+
+    const user = await findUser(name, password);
+    if (!user) return res.status(401).send("Invalid name or password");
+
+    req.session.user = user;
+    res.json({ user });
+  } catch (e: any) {
+    res.status(400).send(e.message);
+  }
 });
 
-// --- Booking logic ---
-app.post("/book", requireLogin, async (req: Request, res: Response, next) => {
+app.post("/api/logout", (req, res) => {
+  req.session.destroy(() => res.sendStatus(204));
+});
+
+app.get("/api/session", (req, res) => {
+  res.json({ user: req.session.user ?? null });
+});
+
+// =============================
+// TRAINERS
+// =============================
+app.get("/api/trainers", async (_req, res) => {
+  const trainers = await listTrainers();
+  res.json(trainers);
+});
+
+// =============================
+// CLASSES
+// =============================
+app.get("/api/classes/:id", async (req, res) => {
   try {
-    console.log("Booking request body:", req.body);
-    const user = req.session.user!;
-    const trainerId = String(req.body.trainerId || "").trim();
-    const classId = String(req.body.classId || "").trim();
-    const price = Number(req.body.price || 0);
+    const id = asString(req.params.id, "missing id");
+    const result = await getClassById(id);
+    if (!result) return res.status(404).send("Not found");
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).send(e.message);
+  }
+});
 
-    const trainerName = String(req.body.trainer || "").trim();
-    const className = String(req.body.class || "").trim();
+// =============================
+// BOOKINGS
+// =============================
+app.get("/api/bookings", async (_req, res) => {
+  const rows = await listBookings();
+  res.json(rows);
+});
 
-    const bookingDate = String(req.body.date || req.query.date || "").trim();
-    const timeSlotRaw = String(
-      req.body.timeSlot || req.query.timeSlot || "",
-    ).trim();
+app.get("/api/my-bookings", async (req, res) => {
+  try {
+    const uid = asString(req.session.user?.id, "need login");
+    const rows = await listUserBookings(uid);
+    res.json(rows);
+  } catch (e: any) {
+    res.status(401).send(e.message);
+  }
+});
 
-    const startMatch = timeSlotRaw.match(/\d{1,2}:\d{2}/);
-    let bookedTimeIso = new Date().toISOString();
-    if (bookingDate && startMatch) {
-      const startTime = startMatch[0];
-      const dt = new Date(`${bookingDate}T${startTime}:00`);
-      if (!isNaN(dt.getTime())) bookedTimeIso = dt.toISOString();
-    }
+app.post("/api/bookings", async (req, res) => {
+  try {
+    const userId = req.session.user?.id ?? null;
+    const name = asString(req.body.name, "missing name");
+    const trainerId = asString(req.body.trainerId, "missing trainerId");
+    const classId = asString(req.body.classId, "missing classId");
 
-    // Prevent duplicate bookings
-    const existingBooking = await checkExistingBooking(
-      user.id,
-      trainerId,
-      bookedTimeIso,
-    );
-    if (existingBooking) {
-      const bookedDateTime = new Date(existingBooking.bookedTime);
-      const formattedDate = bookedDateTime.toLocaleDateString("en-US", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-      const formattedTime = bookedDateTime.toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-      return res.status(409).send(`
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Already Booked</title>
-          <script src="https://cdn.tailwindcss.com"></script>
-        </head>
-        <body class="bg-neutral-800 min-h-screen flex items-center justify-center px-4">
-          <div class="bg-white rounded-lg shadow-xl p-8 max-w-md w-full text-center">
-            <h1 class="text-2xl font-bold text-gray-800 mb-4">Already Booked!</h1>
-            <p class="text-gray-600 mb-6">
-              You already have a booking for <strong>${existingBooking.class}</strong>
-              with <strong>${existingBooking.trainer}</strong>.
-            </p>
-            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <p class="text-sm text-gray-600 mb-2">Your existing booking:</p>
-              <p class="font-semibold text-gray-800">${formattedDate}</p>
-              <p class="font-semibold text-blue-600">${formattedTime}</p>
-            </div>
-            <a href="/trainers.html" class="inline-block bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 font-semibold">
-              Back to Trainer Selection
-            </a>
-          </div>
-        </body>
-        </html>
-      `);
-    }
+    const price = Number(req.body.price);
+    if (Number.isNaN(price)) throw new Error("price must be number");
 
-    // Save new booking
-    const record = {
-      userId: user.id,
-      name: user.name,
+    const email =
+      typeof req.body.email === "string" ? req.body.email : null;
+
+    const bookedTime =
+      typeof req.body.bookedTime === "string"
+        ? req.body.bookedTime
+        : undefined;
+
+    const { id } = await addBooking({
+      userId,
+      name,
+      email,
       trainerId,
       classId,
       price,
-      createdAt: new Date().toISOString(),
-      bookedTime: bookedTimeIso,
-    };
-    const { id } = await addBooking(record);
+      bookedTime,
+    });
 
-    const q = new URLSearchParams({
-      id: String(id),
-      name: user.name,
-      trainer: trainerName,
-      class: className,
-      price: String(price),
-    }).toString();
-
-    res.redirect(`/success.html?${q}`);
-  } catch (err) {
-    next(err);
+    res.json({ id });
+  } catch (e: any) {
+    res.status(400).send(e.message);
   }
 });
 
-// --- Admin Panel ---
-app.get("/admin", requireLogin, async (req: Request, res: Response) => {
-  const user = req.session.user!;
-  const userDb = await getUserById(user.id);
-  if (userDb?.role !== "admin") return res.status(403).send("Forbidden");
-
-  const powerBILink = await getPowerBIEmbedLinks();
-  const rows = await listBookings();
-
-  const getStatusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      booked: "bg-blue-100 text-blue-800",
-      cancelled: "bg-red-100 text-red-800",
-      finished: "bg-green-100 text-green-800",
-    };
-    return `<span class="px-2 py-1 rounded-full text-xs font-semibold ${
-      colors[status] || "bg-gray-100 text-gray-800"
-    }">${status}</span>`;
-  };
-
-  const rowsHtml = rows
-    .map(
-      (b: any) => `
-      <tr>
-        <td class="border px-4 py-2">${b.id}</td>
-        <td class="border px-4 py-2">${b.createdAt}</td>
-        <td class="border px-4 py-2">${b.name}</td>
-        <td class="border px-4 py-2">${b.trainer}</td>
-        <td class="border px-4 py-2">${b.class}</td>
-        <td class="border px-4 py-2">฿${Number(b.price).toLocaleString()}</td>
-        <td class="border px-4 py-2">${getStatusBadge(b.status || "booked")}</td>
-      </tr>`,
-    )
-    .join("");
-
-  res.send(`<!doctype html>
-  <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin — Bookings</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-  </head>
-  <body class="bg-gray-100 min-h-screen p-6">
-    <div class="container mx-auto max-w-6xl">
-      <h1 class="text-3xl font-bold text-gray-800 mb-4">Bookings (Admin)</h1>
-      <p class="mb-4">
-        <a href="/trainers.html" class="text-blue-500 hover:underline">← Back to Trainers</a>
-      </p>
-      <button onclick="window.open('${
-        powerBILink?.link || "#"
-      }', '_blank')" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mb-6">
-        Open Power BI
-      </button>
-      <div class="overflow-x-auto">
-        <table class="min-w-full bg-white border border-gray-300">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="border px-4 py-2 text-left">ID</th>
-              <th class="border px-4 py-2 text-left">Date</th>
-              <th class="border px-4 py-2 text-left">User</th>
-              <th class="border px-4 py-2 text-left">Trainer</th>
-              <th class="border px-4 py-2 text-left">Class</th>
-              <th class="border px-4 py-2 text-left">Price (THB)</th>
-              <th class="border px-4 py-2 text-left">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${
-              rowsHtml ||
-              "<tr><td colspan='7' class='border px-4 py-2 text-center'>No bookings yet</td></tr>"
-            }
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </body>
-  </html>`);
-});
-
-// --- API endpoints ---
-app.get("/api/bookings", requireLogin, async (_req, res) =>
-  res.json(await listBookings()),
-);
-app.get("/api/bookings/me", requireLogin, async (req, res) => {
-  const user = req.session.user!;
-  res.json(await listUserBookings(user.id));
-});
-app.delete("/api/bookings/:id", requireLogin, async (req, res) => {
+app.delete("/api/bookings/:id", async (req, res) => {
   try {
-    const rowCount = await deleteBooking(req.params.id, req.session.user!.id);
-    if (rowCount === 0)
-      return res.status(404).json({ error: "Booking not found" });
-    res.json({ message: "Booking cancelled" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to cancel booking" });
+    const id = asString(req.params.id, "missing id");
+    const userId = asString(req.session.user?.id, "need login");
+
+    const n = await deleteBooking(id, userId);
+    if (!n) return res.status(404).send("Not found");
+
+    res.sendStatus(204);
+  } catch (e: any) {
+    res.status(400).send(e.message);
   }
 });
-app.patch("/api/bookings/:id/status", requireLogin, async (req, res) => {
+
+app.patch("/api/bookings/:id/status", async (req, res) => {
   try {
-    const { status } = req.body;
-    const rowCount = await updateBookingStatus(
-      req.params.id,
-      req.session.user!.id,
-      status,
-    );
-    if (rowCount === 0)
-      return res.status(404).json({ error: "Booking not found" });
-    res.json({ message: "Booking status updated" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to update booking status" });
+    const id = asString(req.params.id, "missing id");
+    const userId = asString(req.session.user?.id, "need login");
+
+    const status = asString(req.body.status, "need status");
+
+    const n = await updateBookingStatus(id, userId, status);
+    if (!n) return res.status(404).send("not found");
+
+    res.sendStatus(204);
+  } catch (e: any) {
+    res.status(400).send(e.message);
   }
 });
-app.get("/api/trainers", async (_req, res) => res.json(await listTrainers()));
 
-// --- Error handler ---
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error(err);
-  res.status(500).send("Server error");
-});
-
-// --- Start server ---
-const port = parseInt(process.env.PORT || "5000", 10);
-app.listen(port, "0.0.0.0", () =>
-  console.log(`✅ Server running on port ${port}`),
+// =============================
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () =>
+  console.log(`✅ Server running at http://localhost:${PORT}`)
 );
