@@ -34,15 +34,15 @@
     </div>
 
     <script>
-      let TRAINERS = [];
+      let CLASSES = [];
 
-      async function loadTrainers() {
+      async function loadClasses() {
         try {
-          const response = await fetch("/api/trainers");
-          TRAINERS = await response.json();
-          renderTrainers();
+          const response = await fetch("/api/classes");
+          CLASSES = await response.json();
+          renderClasses();
         } catch (err) {
-          console.error("Failed to load trainers:", err);
+          console.error("Failed to load classses:", err);
         }
       }
 
@@ -50,35 +50,35 @@
         return "฿" + Number(n).toLocaleString();
       }
 
-      function renderTrainers() {
+      function renderClasses() {
         const root = document.getElementById("trainers");
         if (!root) return;
         root.innerHTML = "";
 
-        TRAINERS.forEach((t, i) => {
+        ClASSES.forEach((c, i) => {
           const card = document.createElement("div");
           card.className = "bg-neutral-100 p-6 rounded-lg shadow-md";
 
           card.innerHTML = `
           <p class="text-gray-1200 mb-6">
-        <span class="font-bold text-xl">${t.class} —
-       <span class="text-green-800">${thb(t.price)}</span>
+        <span class="font-bold text-xl">${c.name} —
+       <span class="text-green-800">${thb(c.price)}</span>
    </p>
   <!--เอาชื่อเทรนเนอร์ออก-->
         <div class="flex flex-wrap gap-2 mb-4">
         
           <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">${
-            t.level
+            c.level
           }</span>
           <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-sm">${
-            t.length
+            c.length
           }</span>
           <span class="bg-purple-100 text-purple-800 px-2 py-1 rounded text-sm">Group: ${
-            t.group_size
+            c.group_size
           }</span>
         </div>
  
-        <p class="text-gray-600 mb-4">${t.about}</p>
+        <p class="text-gray-600 mb-4">${c.about}</p>
 <!--ย้ายราคา-->
         <details class="mb-4">
           <summary class="cursor-pointer text-blue-500 hover:underline">View class syllabus & schedule</summary>
@@ -86,7 +86,7 @@
             <div>
               <b>What you'll learn</b>
               <ul class="list-disc list-inside text-gray-600">
-                ${t.syllabus.map((li) => `<li>${li}</li>`).join("")}
+                ${c.syllabus.map((li) => `<li>${li}</li>`).join("")}
               </ul>
             </div>
             <div>
@@ -104,12 +104,10 @@
         root.addEventListener("click", (e) => {
           const btn = e.target.closest(".book-btn");
           if (!btn) return;
-          const t = TRAINERS[btn.dataset.idx];
-          const url = `/booking.html?trainer=${encodeURIComponent(
-            t.name,
-          )}&trainerId=${t.id}&class=${encodeURIComponent(t.class)}&classId=${
-            t.classId
-          }&price=${t.price}`;
+          const c = CLASSES[btn.dataset.idx];
+          const url = `/booking.html?class=${encodeURIComponent(
+            c.name,
+          )}&classId=${c.id}&price=${c.price}`;
           location.href = url;
         });
       }
@@ -133,7 +131,7 @@
       }
 
       document.addEventListener("DOMContentLoaded", () => {
-        loadTrainers();
+        loadClasses();
         checkAdmin();
       });
     </script>
