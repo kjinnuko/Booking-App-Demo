@@ -330,30 +330,26 @@ export async function getClassById(id: string): Promise<any | null> {
 }
 
 export async function listTrainers(): Promise<any[]> {
-  const trainerRes = await pool.query(`
-    SELECT id, name, schedule FROM trainers ORDER BY name
+ const trainerRes = await pool.query(`
+    SELECT DISTINCT t.id, t.name, t.schedule, c.id AS class_id, c.name AS class_name, c.price, c.about, c.syllabus, c.level, c.length, c.group_size
+    FROM trainers t
+    JOIN bookings b ON t.id = b.trainerId
+    JOIN classes c ON b.classId = c.id
+    ORDER BY t.name
   `);
-
-  const classRes = await pool.query(`
-    SELECT id, name, price, about, syllabus, level, length, group_size FROM classes
-  `);
-
-  const classMap = new Map(classRes.rows.map(c => [c.id, c]));
-
-  return trainerRes.rows.map((t) => {
-    const c = classMap.get(t.class_id);
-    return {
-      id: t.id,
-      name: t.name,
-      schedule: t.schedule,
-      class: c?.name ?? null,
-      classId: c?.id ?? null,
-      price: c?.price ?? null,
-      about: c?.about ?? null,
-      syllabus: c?.syllabus ?? null,
-      level: c?.level ?? null,
-      length: c?.length ?? null,
-      group_size: c?.group_size ?? null,
+  
+  return trainerRes.rows.map((t) => ({
+    id: t.id,
+    name: t.name,
+    schedule: t.schedule,
+    class: t.class_name,
+    classId: t.class_id,
+    price: t.price,
+    about: t.about,
+    syllabus: t.syllabus,
+    level: t.level,
+    length: t.length,
+    group_size: t.group_size,
     };
   });
 }
