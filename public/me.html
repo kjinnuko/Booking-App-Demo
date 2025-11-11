@@ -64,19 +64,10 @@
     const dt = new Date(b.bookedTime);
     const created = new Date(b.createdAt);
     const status = String(b.status || 'booked').toLowerCase();
-
-    const actions = showActions && status === 'booked' ? `
-      <div class="flex gap-2 mt-4">
-        <button class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
-                onclick="markAsFinished('${b.id}', this)">Mark as Finished</button>
-        <button class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
-                onclick="cancelBooking('${b.id}', this)">Cancel Booking</button>
-      </div>` : '';
-
-    const badge = statusBadgeIfNeeded(status); // จะว่างถ้าเป็น booked
+    const badge = statusBadgeIfNeeded(status);
 
     return `
-      <div class="bg-white p-6 rounded-lg shadow-md">
+      <div class="bg-white p-6 rounded-lg shadow-md" data-booking-id="${b.id}">
         <div class="flex items-start justify-between">
           <div>
             <h3 class="text-xl font-semibold text-gray-800">${b.trainer} - ${b.class}</h3>
@@ -87,7 +78,13 @@
           </div>
           <div>${badge}</div>
         </div>
-        ${actions}
+        ${showActions && status === 'booked' ? `
+          <div class="flex gap-2 mt-4">
+            <button class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
+                    onclick="markAsFinished('${b.id}', this)">Mark as Finished</button>
+            <button class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+                    onclick="cancelBooking('${b.id}', this)">Cancel Booking</button>
+          </div>` : ''}
       </div>`;
   }
 
@@ -142,9 +139,24 @@
   }
 
   // --------- Actions ---------
+  function removeCardFromUpcoming(id) {
+    const wrapper = document.querySelector(`[data-booking-id="${id}"]`);
+    if (wrapper && wrapper.parentElement?.id === 'list-upcoming') {
+      wrapper.remove();
+      // ถ้าไม่มีการ์ดเหลือ ให้ขึ้นข้อความว่าง
+      if (!document.querySelector('#list-upcoming [data-booking-id]')) {
+        document.getElementById('list-upcoming').innerHTML =
+          '<p class="text-gray-300">No upcoming bookings. Book your first class!</p>';
+      }
+    }
+  }
+
   async function markAsFinished(id, btn) {
     if (!confirm('Mark this class as finished?')) return;
-    btn?.setAttribute('disabled','true');
+    btn?.setAttribute('disabled', 'true');
+
+    // optimistic: เอาออกจาก upcoming ก่อน
+    removeCardFromUpcoming(id);
 
     try {
       const r = await fetch(`/api/bookings/${id}/status`, {
@@ -154,12 +166,14 @@
       });
       if (!r.ok) throw new Error('update failed');
 
-      // รีเฟรชทั้งสองลิสต์แล้วพาไป History
+      // โหลดซ้ำทั้งสองฝั่ง แล้วสลับไป History (เอาออกได้ถ้าไม่อยากสลับ)
       await Promise.all([ loadUpcoming(), loadHistory() ]);
       switchTab('history');
     } catch (e) {
       console.error(e);
       alert('Failed to update booking status. Please try again.');
+      // ถ้าล้มเหลว อาจ reload ใหม่ทั้งหน้า upcoming ให้กลับมาถูกต้อง
+      await loadUpcoming();
     } finally {
       btn?.removeAttribute('disabled');
     }
@@ -167,23 +181,25 @@
 
   async function cancelBooking(id, btn) {
     if (!confirm('Cancel this booking?')) return;
-    btn?.setAttribute('disabled','true');
+    btn?.setAttribute('disabled', 'true');
+
+    // optimistic: เอาออกจาก upcoming ก่อน
+    removeCardFromUpcoming(id);
 
     try {
       const r = await fetch(`/api/bookings/${id}`, { method: 'DELETE' });
       if (!r.ok) throw new Error('cancel failed');
 
-      // รีเฟรชทั้งสองลิสต์แล้วพาไป History
       await Promise.all([ loadUpcoming(), loadHistory() ]);
-      switchTab('history');
+      switchTab('history'); // ถ้าไม่อยาก auto switch ให้ลบบรรทัดนี้
     } catch (e) {
       console.error(e);
       alert('Failed to cancel booking.');
+      await loadUpcoming();
     } finally {
       btn?.removeAttribute('disabled');
     }
   }
-
   // --------- Tabs ---------
   function switchTab(tab) {
     const upBtn = document.getElementById('tab-upcoming');
