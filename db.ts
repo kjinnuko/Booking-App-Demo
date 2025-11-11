@@ -330,14 +330,14 @@ export async function getClassById(id: string): Promise<any | null> {
 }
 
 export async function listTrainers(): Promise<any[]> {
- const trainerRes = await pool.query(`
+  const trainerRes = await pool.query(`
     SELECT DISTINCT t.id, t.name, t.schedule, c.id AS class_id, c.name AS class_name, c.price, c.about, c.syllabus, c.level, c.length, c.group_size
     FROM trainers t
     JOIN bookings b ON t.id = b.trainerId
     JOIN classes c ON b.classId = c.id
     ORDER BY t.name
   `);
-  
+
   return trainerRes.rows.map((t) => ({
     id: t.id,
     name: t.name,
@@ -349,10 +349,10 @@ export async function listTrainers(): Promise<any[]> {
     syllabus: t.syllabus,
     level: t.level,
     length: t.length,
-    group_size: t.group_size,
-    };
-  });
+    group_size: t.group_size
+  }));
 }
+
 
 // NEW: คืนรายการคลาสทั้งหมด
 export async function listClasses(): Promise<any[]> {
