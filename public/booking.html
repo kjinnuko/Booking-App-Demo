@@ -128,31 +128,36 @@
   }
       
       
-      function buildWeekSchedule(trainer) {
-    // คืนตารางแบบ { Mon: ["09:00-11:00"], Thu: ["09:00-11:00"] }
-    const sched = {};
-    if (!trainer || !Array.isArray(trainer.schedule)) return sched;
+     function buildWeekSchedule(trainer) {
+  const sched = {};
+  if (!trainer || !Array.isArray(trainer.schedule)) return sched;
 
-    trainer.schedule.forEach((slotRaw) => {
-      if (typeof slotRaw !== "string") return;
+  trainer.schedule.forEach((slotRaw) => {
+    if (typeof slotRaw !== "string") return;
 
-      // 1) ลบอักขระแปลก/ช่องว่างเกิน  2) แปลง en dash → hyphen
-      let s = slotRaw.replace(/\u2013/g, "-").replace(/\s+/g, " ").trim();
+    // Fix EN DASH → hyphen and normalize whitespace
+    let s = slotRaw.replace(/\u2013/g, "-").replace(/\s+/g, " ").trim();
 
-      // รองรับทั้ง "Mon 09:00-11:00" หรือ "Monday 09:00-11:00"
-      const m = s.match(/^([A-Za-z]+)\s+([0-2]\d:[0-5]\d)\s*-\s*([0-2]\d:[0-5]\d)$/);
-      if (!m) return;
+    // Now accept `Mon`, `Monday`, etc + optional spaces around '-'
+    const m = s.match(/^([A-Za-z]+)\s+([0-2]\d:[0-5]\d)\s*-\s*([0-2]\d:[0-5]\d)$/);
 
-      const dayAbbrev = normalizeDayToAbbrev(m[1]);
-      if (!dayAbbrev) return;
+    if (!m) {
+      console.warn("Unmatched schedule entry:", s);
+      return;
+    }
 
-      const timeStr = `${m[2]}-${m[3]}`;
-      if (!sched[dayAbbrev]) sched[dayAbbrev] = [];
-      sched[dayAbbrev].push(timeStr);
-    });
+    const dayAbbrev = normalizeDayToAbbrev(m[1]);
+    if (!dayAbbrev) return;
 
-    return sched;
-  }
+    const timeStr = `${m[2]}-${m[3]}`;
+
+    if (!sched[dayAbbrev]) sched[dayAbbrev] = [];
+    sched[dayAbbrev].push(timeStr);
+  });
+
+  console.log("Built schedule:", sched);
+  return sched;
+}
 
       function getFirstAvailableDate(sched, maxDays = 90, preferISO) {
         const today = new Date();
