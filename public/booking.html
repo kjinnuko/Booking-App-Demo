@@ -126,74 +126,56 @@
     // ตัดให้เหลือ 3 ตัวแรกถ้าเจอรูปแบบแปลก
     return map[t] || map[t.slice(0,3)] || "";
   }
-function coerceScheduleToArray(raw) {
-    let v = raw;
-
-    // ถ้า backend ส่ง JSON เป็นสตริง ให้ parse ก่อน
-    if (typeof v === "string") {
-      try { v = JSON.parse(v); } catch { /* ปล่อยไว้ */ }
-    }
-
-    // ถ้าเป็น object (map วัน -> เวลา/arrayเวลา) แปลงเป็น array ของสตริงมาตรฐาน
-    if (v && typeof v === "object" && !Array.isArray(v)) {
-      const out = [];
-      for (const key of Object.keys(v)) {
-        const day = normalizeDayToAbbrev(key);
-        if (!day) continue;
-        const val = v[key];
-        if (Array.isArray(val)) {
-          val.forEach(t => {
-            if (typeof t === "string") out.push(`${day} ${t}`);
-          });
-        } else if (typeof val === "string") {
-          out.push(`${day} ${val}`);
-        }
-      }
-      return out;
-    }
-
-    // ถ้าเป็น array อยู่แล้วก็ส่งกลับ
-    if (Array.isArray(v)) return v;
-
-    // อื่นๆ ให้คืน array ว่าง
-    return [];
-  }
 
   // ✅ เวอร์ชัน “กันทุกเคส” ของ buildWeekSchedule
-  function buildWeekSchedule(trainer) {
-    const sched = {};
-    if (!trainer) return sched;
+function buildWeekSchedule(trainer) {
+  const sched = {};
+  if (!trainer) return sched;
 
-    // 1) ดึง schedule จาก trainer แล้วบังคับให้เป็น array เสมอ
-    const arr = coerceScheduleToArray(trainer.schedule);
-
-    // 2) เคลียร์ dash และ whitespace แล้ว parse
-    arr.forEach((slotRaw) => {
-      if (typeof slotRaw !== "string") return;
-
-      // EN DASH → hyphen และ normalize ช่องว่าง
-      let s = slotRaw.replace(/\u2013/g, "-").replace(/\s+/g, " ").trim();
-
-      // ยอมรับ Mon/Monday + อนุญาตช่องว่างรอบ '-'
-      // รูปแบบเป้าหมาย:  "Mon 09:00-11:00"
-      const m = s.match(/^([A-Za-z]+)\s+([0-2]\d:[0-5]\d)\s*-\s*([0-2]\d:[0-5]\d)$/);
-      if (!m) {
-        console.warn("Unmatched schedule entry:", slotRaw, "→ normalized:", s);
-        return;
-      }
-
-      const dayAbbrev = normalizeDayToAbbrev(m[1]);
-      if (!dayAbbrev) return;
-
-      const timeStr = `${m[2]}-${m[3]}`;
-      if (!sched[dayAbbrev]) sched[dayAbbrev] = [];
-      sched[dayAbbrev].push(timeStr);
-    });
-
-    // 👀 ช่วย debug
-     console.log("BUILT SCHEDULE →", sched, "(raw:", trainer.schedule, ")");
-    return sched;
+  // 1) บังคับให้ schedule กลายเป็น array เสมอ
+  let arr = [];
+  const raw = trainer.schedule;
+  if (Array.isArray(raw)) {
+    arr = raw;
+  } else if (typeof raw === "string") {
+    try { arr = JSON.parse(raw); } catch { arr = []; }
+  } else if (raw && typeof raw === "object") {
+    // เผื่อ backend ส่งเป็น object เช่น { Mon: "09:00–11:00", Thu: "09:00–11:00" }
+    for (const k of Object.keys(raw)) {
+      const day = normalizeDayToAbbrev(k);
+      const v = raw[k];
+      if (Array.isArray(v)) v.forEach(t => arr.push(`${day} ${t}`));
+      else if (typeof v === "string") arr.push(`${day} ${v}`);
+    }
   }
+
+  // 2) แปลง dash แปลกๆ และแยกวัน/เวลาแบบหลวม (ไม่ใช้ regex เข้ม)
+  arr.forEach((slotRaw) => {
+    if (typeof slotRaw !== "string") return;
+
+    // แปลง en/em/figure/minus → hyphen, และจัดช่องว่าง
+    const s = slotRaw
+      .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g, "-")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const i = s.indexOf(" ");
+    if (i < 0) return;
+
+    const dayToken = s.slice(0, i);
+    const timeToken = s.slice(i + 1); // เก็บ "09:00-11:00" ไว้ทั้งก้อน
+
+    const day = normalizeDayToAbbrev(dayToken);
+    if (!day || !timeToken) return;
+
+    if (!sched[day]) sched[day] = [];
+    sched[day].push(timeToken);
+  });
+
+  // ช่วยดีบั๊ก
+  console.log("BUILT SCHEDULE →", sched, "(raw:", trainer.schedule, ")");
+  return sched;
+}
       function getFirstAvailableDate(sched, maxDays = 90, preferISO) {
         const today = new Date();
         for (let i = 0; i < maxDays; i++) {
