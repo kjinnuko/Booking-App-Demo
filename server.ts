@@ -247,19 +247,30 @@ app.patch(
   requireLogin,
   async (req: Request, res: Response) => {
     try {
-      const id = req.params.id;
-      const userId = req.user!.id;
-      const status = String(req.body.status || "").toLowerCase();
+      const bookingId = String(req.params.id ?? "").trim();
+      const userId = String(req.user?.id ?? "").trim();
+      const statusRaw = (req.body as any)?.status;
+      const status =
+        typeof statusRaw === "string" ? statusRaw.toLowerCase().trim() : "";
+
+      if (!bookingId) {
+        return res.status(400).json({ error: "Booking ID is required" });
+      }
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
 
       const allowed = new Set(["booked", "finished", "cancelled"]);
       if (!allowed.has(status)) {
         return res.status(400).json({ error: "Invalid status" });
       }
 
-      const ok = await updateBookingStatus(id, userId, status as any);
-      if (!ok) return res.status(404).json({ error: "Not found" });
+      const updated = await updateBookingStatus(bookingId, userId, status as any);
+      if (!updated) {
+        return res.status(404).json({ error: "Not found" });
+      }
 
-      res.json({ ok: true, id, status });
+      res.json({ ok: true, id: bookingId, status });
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: "Failed to update status" });
@@ -272,30 +283,38 @@ app.get(
   "/api/bookings/me",
   requireLogin,
   async (req: Request, res: Response) => {
-    const userId = req.user!.id;
-    const scope = String(req.query.scope || "all").toLowerCase();
-    // ใช้ NOW() เทียบเวลา ถ้าเวลาที่เก็บเป็น UTC อยู่แล้วก็โอเค
-    const nowClause = `NOW()`;
+    try {
+      const userId = String(req.user?.id ?? "").trim();
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
 
-    let whereExtra = "";
-    if (scope === "upcoming") {
-      whereExtra = `AND b.status = 'booked' AND b."bookedTime" >= ${nowClause}`;
-    } else if (scope === "history") {
-      whereExtra = `AND (b.status IN ('finished','cancelled') OR b."bookedTime" < ${nowClause})`;
+      const scope = String(req.query.scope ?? "all").toLowerCase();
+      const rows = await listUserBookings(userId);
+
+      const now = new Date();
+      const result = rows
+        .filter((b: any) => {
+          const status = String(b.status ?? "booked").toLowerCase();
+          const when = new Date(b.bookedTime);
+
+          if (scope === "upcoming") {
+            return status === "booked" && when >= now;
+          } else if (scope === "history") {
+            return status === "finished" || status === "cancelled" || when < now;
+          }
+          return true; // all
+        })
+        .sort(
+          (a: any, b: any) =>
+            Number(new Date(b.bookedTime)) - Number(new Date(a.bookedTime))
+        );
+
+      res.json(result);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: "Failed to load my bookings" });
     }
-
-    const rows = await pool.query(
-      `SELECT b.id, b.name, b."createdAt", b."bookedTime", b.price, b.status,
-              t.name AS trainer, c.name AS class
-         FROM bookings b
-         JOIN trainers t ON b."trainerId" = t.id
-         JOIN classes  c ON b."classId"  = c.id
-        WHERE b."userId" = $1
-              ${whereExtra}
-        ORDER BY b."bookedTime" DESC`,
-      [userId]
-    );
-    res.json(rows.rows);
   }
 );
 
