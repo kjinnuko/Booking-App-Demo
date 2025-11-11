@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>My Bookings</title>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -48,28 +48,32 @@
   // --------- Utils ---------
   const fmtTHB = n => '฿' + Number(n||0).toLocaleString('en-US');
 
-  function badge(status) {
+  function statusBadgeIfNeeded(status) {
+    // แสดง badge เฉพาะเมื่อ status ≠ 'booked'
+    const s = String(status || 'booked').toLowerCase();
+    if (s === 'booked') return '';
     const map = {
-      booked:   'bg-blue-100 text-blue-800',
-      finished: 'bg-green-100 text-green-800',
-      cancelled:'bg-red-100 text-red-800'
+      finished:  'bg-green-100 text-green-800',
+      cancelled: 'bg-red-100 text-red-800'
     };
-    return `<span class="px-3 py-1 rounded-full text-sm font-semibold ${map[status]||'bg-gray-100 text-gray-800'}">
-      ${String(status||'booked').toUpperCase()}
-    </span>`;
+    const cls = map[s] || 'bg-gray-100 text-gray-800';
+    return `<span class="px-3 py-1 rounded-full text-sm font-semibold ${cls}">${s.toUpperCase()}</span>`;
   }
 
-  function card(b, isUpcoming) {
+  function bookingCard(b, showActions) {
     const dt = new Date(b.bookedTime);
     const created = new Date(b.createdAt);
-    const status = b.status || 'booked';
-    const actions = (status === 'booked' && isUpcoming) ? `
+    const status = String(b.status || 'booked').toLowerCase();
+
+    const actions = showActions && status === 'booked' ? `
       <div class="flex gap-2 mt-4">
         <button class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
                 onclick="markAsFinished('${b.id}', this)">Mark as Finished</button>
         <button class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
                 onclick="cancelBooking('${b.id}', this)">Cancel Booking</button>
       </div>` : '';
+
+    const badge = statusBadgeIfNeeded(status); // จะว่างถ้าเป็น booked
 
     return `
       <div class="bg-white p-6 rounded-lg shadow-md">
@@ -81,7 +85,7 @@
             <p class="text-gray-600">Price: ${fmtTHB(b.price)}</p>
             <p class="text-sm text-gray-500 mt-2">Booked on: ${created.toLocaleDateString()}</p>
           </div>
-          <div>${badge(status)}</div>
+          <div>${badge}</div>
         </div>
         ${actions}
       </div>`;
@@ -108,11 +112,12 @@
     box.innerHTML = '';
     setLoading(true); setError(false);
     try {
-      const rows = await fetchMine('upcoming');
+      const rows = await fetchMine('upcoming'); // backend คัดเฉพาะ booked ให้แล้ว
       if (!rows.length) {
         box.innerHTML = `<p class="text-gray-300">No upcoming bookings. Book your first class!</p>`;
       } else {
-        box.innerHTML = rows.map(r => card(r, true)).join('');
+        // upcoming: ไม่แสดง badge (เพราะ status=booked) + มีปุ่ม action
+        box.innerHTML = rows.map(r => bookingCard(r, true)).join('');
       }
     } catch (e) {
       console.error(e); setError(true);
@@ -124,11 +129,12 @@
     box.innerHTML = '';
     setLoading(true); setError(false);
     try {
-      const rows = await fetchMine('history');
+      const rows = await fetchMine('history'); // backend คัด finished/cancelled ให้แล้ว
       if (!rows.length) {
         box.innerHTML = `<p class="text-gray-300">No booking history yet.</p>`;
       } else {
-        box.innerHTML = rows.map(r => card(r, false)).join('');
+        // history: แสดง badge เฉพาะ status ≠ booked (ตรงความต้องการ)
+        box.innerHTML = rows.map(r => bookingCard(r, false)).join('');
       }
     } catch (e) {
       console.error(e); setError(true);
@@ -146,9 +152,7 @@
         body: JSON.stringify({ status: 'finished' })
       });
       if (!r.ok) throw new Error('update failed');
-      await loadUpcoming();            // item จะย้ายไป history โดยอัตโนมัติจาก backend rule
-      // optional: โหลด history ด้วยเพื่อรีเฟรชป้าย
-      // await loadHistory();
+      await loadUpcoming(); // ย้ายไป history โดย backend
       alert('Class marked as finished!');
     } catch (e) {
       console.error(e);
@@ -165,7 +169,6 @@
       const r = await fetch(`/api/bookings/${id}`, { method: 'DELETE' });
       if (!r.ok) throw new Error('cancel failed');
       await loadUpcoming(); // ย้ายไป history (status = cancelled)
-      // await loadHistory();
       alert('Booking cancelled.');
     } catch (e) {
       console.error(e);
