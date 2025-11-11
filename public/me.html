@@ -1,338 +1,207 @@
-<!--<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Bookings</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-  </head>
-  <body class="bg-neutral-800 min-h-screen">
-    <div class="container mx-auto px-4 py-8">
-      <header class="mb-8">
-        <h1 class="text-3xl font-bold text-white">My Bookings</h1>
-        <p class="text-neutral-200">
-          View your upcoming and past fitness class bookings.
-        </p>
-        <nav class="mt-4">
-          <a href="/trainers.html" class="text-blue-500 hover:underline"
-            >← Back to Trainers</a
-          >
-        </nav>
-      </header>
-
-      <div id="bookings-list" class="space-y-4">
-        <!-- Bookings will be loaded here -->
-      <!--</div>
-
-      <div id="loading" class="text-center text-gray-500">
-        Loading your bookings...
-      </div>
-
-      <div id="error" class="text-center text-red-500 hidden">
-        Failed to load bookings. Please try again.
-      </div>
-    </div>
-
-    <script>
-      async function loadBookings() {
-        try {
-          const response = await fetch("/api/bookings/me");
-          if (response.status === 401) {
-            window.location.href = "/login.html";
-            return;
-          }
-          if (!response.ok) {
-            throw new Error("Failed to fetch bookings");
-          }
-          const bookings = await response.json();
-
-          const bookingsList = document.getElementById("bookings-list");
-          const loading = document.getElementById("loading");
-          loading.style.display = "none";
-
-          if (bookings.length === 0) {
-            bookingsList.innerHTML =
-              '<p class="text-gray-500">No bookings found.</p>';
-            return;
-          }
-
-          bookingsList.innerHTML = bookings
-            .map(
-              (booking) => `
-          <div class="bg-white p-6 rounded-lg shadow-md">
-            <h2 class="text-xl font-semibold text-gray-800">${
-              booking.trainer
-            } - ${booking.class}</h2>
-            <p class="text-gray-600">Date: ${new Date(
-              booking.bookedTime
-            ).toLocaleDateString()}</p>
-            <p class="text-gray-600">Time: ${new Date(
-              booking.bookedTime
-            ).toLocaleTimeString()}</p>
-            <p class="text-gray-600">Price: ฿${booking.price.toLocaleString()}</p>
-            <p class="text-sm text-gray-500">Booked on: ${new Date(
-              booking.createdAt
-            ).toLocaleDateString()}</p>
-            <button onclick="cancelBooking('${
-              booking.id
-            }')" class="mt-4 bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Cancel Booking</button>
-          </div>
-        `
-            )
-            .join("");
-        } catch (err) {
-          console.error(err);
-          document.getElementById("loading").style.display = "none";
-          document.getElementById("error").classList.remove("hidden");
-        }
-      }
-
-      async function cancelBooking(id) {
-        if (!confirm("Are you sure you want to cancel this booking?")) return;
-        try {
-          const response = await fetch(`/api/bookings/${id}`, {
-            method: "DELETE",
-          });
-          if (!response.ok) {
-            throw new Error("Failed to cancel booking");
-          }
-          alert("Booking cancelled successfully.");
-          loadBookings(); // Reload the list
-        } catch (err) {
-          console.error(err);
-          alert("Failed to cancel booking. Please try again.");
-        }
-      }
-
-      // Load bookings on page load
-      loadBookings();
-    </script>
-  </body>
-</html>-->
-
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Bookings</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-  </head>
-  <body class="bg-neutral-800 min-h-screen">
-    <div class="container mx-auto px-4 py-8">
-      <header class="mb-8">
-        <h1 class="text-3xl font-bold text-white">My Bookings</h1>
-        <p class="text-neutral-200">
-          View your upcoming and past fitness class bookings.
-        </p>
-        <nav class="mt-4 flex gap-4 items-center">
-          <a href="/trainers.html" class="text-blue-500 hover:underline"
-            >← Back to Trainers</a
-          >
-          <form method="POST" action="/logout" class="inline">
-            <button
-              type="submit"
-              class="text-red-400 hover:text-red-300 hover:underline"
-            >
-              Logout
-            </button>
-          </form>
-        </nav>
-      </header>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My Bookings</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-neutral-800 min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-5xl">
+    <!-- Header -->
+    <header class="mb-8">
+      <h1 class="text-3xl font-bold text-white">My Bookings</h1>
+      <p class="text-neutral-200">View your upcoming and past fitness class bookings.</p>
+      <nav class="mt-4 flex items-center gap-4">
+        <a href="/trainers.html" class="text-blue-400 hover:underline">← Back to Trainers</a>
+        <form method="POST" action="/logout" class="inline">
+          <button type="submit" class="text-red-400 hover:text-red-300 hover:underline">Logout</button>
+        </form>
+      </nav>
+    </header>
 
-      <div class="flex gap-4 mb-6">
-        <button
-          id="upcoming-tab"
-          onclick="showTab('upcoming')"
-          class="tab-button bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 font-semibold"
-        >
-          UPCOMING
-        </button>
-        <button
-          id="history-tab"
-          onclick="showTab('history')"
-          class="tab-button bg-gray-600 text-white px-6 py-2 rounded hover:bg-gray-700 font-semibold"
-        >
-          HISTORY
-        </button>
-      </div>
-
-      <div id="upcoming-section" class="section-content">
-        <h2 class="text-2xl font-bold text-white mb-4">Upcoming Classes</h2>
-        <div id="upcoming-list" class="space-y-4">
-          <!-- Upcoming bookings will be loaded here -->
-        </div>
-      </div>
-
-      <div id="history-section" class="section-content hidden">
-        <h2 class="text-2xl font-bold text-white mb-4">Booking History</h2>
-        <div id="history-list" class="space-y-4">
-          <!-- History bookings will be loaded here -->
-        </div>
-      </div>
-
-      <div id="loading" class="text-center text-gray-300">
-        Loading your bookings...
-      </div>
-
-      <div id="error" class="text-center text-red-500 hidden">
-        Failed to load bookings. Please try again.
-      </div>
+    <!-- Tabs -->
+    <div class="flex gap-3 mb-6">
+      <button id="tab-upcoming" class="px-5 py-2 rounded font-semibold bg-blue-500 text-white"
+              onclick="switchTab('upcoming')">UPCOMING</button>
+      <button id="tab-history" class="px-5 py-2 rounded font-semibold bg-gray-600 text-white"
+              onclick="switchTab('history')">HISTORY</button>
     </div>
 
-    <script>
-      let currentTab = 'upcoming';
+    <!-- Sections -->
+    <section id="section-upcoming">
+      <h2 class="text-2xl font-bold text-white mb-4">Upcoming Classes</h2>
+      <div id="list-upcoming" class="space-y-4"></div>
+    </section>
 
-      function showTab(tab) {
-        currentTab = tab;
+    <section id="section-history" class="hidden">
+      <h2 class="text-2xl font-bold text-white mb-4">Booking History</h2>
+      <div id="list-history" class="space-y-4"></div>
+    </section>
 
-        const upcomingSection = document.getElementById('upcoming-section');
-        const historySection = document.getElementById('history-section');
-        const upcomingTab = document.getElementById('upcoming-tab');
-        const historyTab = document.getElementById('history-tab');
+    <!-- Status blocks -->
+    <div id="loading" class="text-center text-gray-300 mt-8">Loading…</div>
+    <div id="error" class="text-center text-red-400 mt-8 hidden">Failed to load bookings. Please try again.</div>
+  </div>
 
-        if (tab === 'upcoming') {
-          upcomingSection.classList.remove('hidden');
-          historySection.classList.add('hidden');
-          upcomingTab.classList.remove('bg-gray-600');
-          upcomingTab.classList.add('bg-blue-500');
-          historyTab.classList.remove('bg-blue-500');
-          historyTab.classList.add('bg-gray-600');
-        } else {
-          upcomingSection.classList.add('hidden');
-          historySection.classList.remove('hidden');
-          upcomingTab.classList.remove('bg-blue-500');
-          upcomingTab.classList.add('bg-gray-600');
-          historyTab.classList.remove('bg-gray-600');
-          historyTab.classList.add('bg-blue-500');
-        }
-      }
+<script>
+  // --------- Utils ---------
+  const fmtTHB = n => '฿' + Number(n||0).toLocaleString('en-US');
 
-      function getStatusBadge(status) {
-        const colors = {
-          booked: 'bg-blue-100 text-blue-800',
-          cancelled: 'bg-red-100 text-red-800',
-          finished: 'bg-green-100 text-green-800'
-        };
-        return `<span class="px-3 py-1 rounded-full text-sm font-semibold ${colors[status] || 'bg-gray-100 text-gray-800'}">${status.toUpperCase()}</span>`;
-      }
+  function badge(status) {
+    const map = {
+      booked:   'bg-blue-100 text-blue-800',
+      finished: 'bg-green-100 text-green-800',
+      cancelled:'bg-red-100 text-red-800'
+    };
+    return `<span class="px-3 py-1 rounded-full text-sm font-semibold ${map[status]||'bg-gray-100 text-gray-800'}">
+      ${String(status||'booked').toUpperCase()}
+    </span>`;
+  }
 
-      function renderBooking(booking, isUpcoming) {
-        const status = booking.status || 'booked';
-        const isBooked = status === 'booked';
-        const isCancelled = status === 'cancelled';
-        const isFinished = status === 'finished';
+  function card(b, isUpcoming) {
+    const dt = new Date(b.bookedTime);
+    const created = new Date(b.createdAt);
+    const status = b.status || 'booked';
+    const actions = (status === 'booked' && isUpcoming) ? `
+      <div class="flex gap-2 mt-4">
+        <button class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
+                onclick="markAsFinished('${b.id}', this)">Mark as Finished</button>
+        <button class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+                onclick="cancelBooking('${b.id}', this)">Cancel Booking</button>
+      </div>` : '';
 
-        return `
-          <div class="bg-white p-6 rounded-lg shadow-md">
-            <div class="flex justify-between items-start mb-4">
-              <div>
-                <h2 class="text-xl font-semibold text-gray-800">${booking.trainer} - ${booking.class}</h2>
-                <p class="text-gray-600 mt-1">Date: ${new Date(booking.bookedTime).toLocaleDateString()}</p>
-                <p class="text-gray-600">Time: ${new Date(booking.bookedTime).toLocaleTimeString()}</p>
-                <p class="text-gray-600">Price: ฿${booking.price.toLocaleString()}</p>
-                <p class="text-sm text-gray-500 mt-2">Booked on: ${new Date(booking.createdAt).toLocaleDateString()}</p>
-              </div>
-              <div>
-                ${getStatusBadge(status)}
-              </div>
-            </div>
-            <div class="flex gap-2 mt-4">
-              ${isBooked ? `
-                <button onclick="markAsFinished('${booking.id}')" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Mark as Finished</button>
-                <button onclick="cancelBooking('${booking.id}')" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Cancel Booking</button>
-              ` : ''}
-              ${isCancelled ? '<p class="text-gray-500 text-sm">This booking was cancelled</p>' : ''}
-              ${isFinished ? '<p class="text-green-600 text-sm font-semibold">✓ Class completed!</p>' : ''}
-            </div>
+    return `
+      <div class="bg-white p-6 rounded-lg shadow-md">
+        <div class="flex items-start justify-between">
+          <div>
+            <h3 class="text-xl font-semibold text-gray-800">${b.trainer} - ${b.class}</h3>
+            <p class="text-gray-600 mt-1">Date: ${dt.toLocaleDateString()}</p>
+            <p class="text-gray-600">Time: ${dt.toLocaleTimeString()}</p>
+            <p class="text-gray-600">Price: ${fmtTHB(b.price)}</p>
+            <p class="text-sm text-gray-500 mt-2">Booked on: ${created.toLocaleDateString()}</p>
           </div>
-        `;
+          <div>${badge(status)}</div>
+        </div>
+        ${actions}
+      </div>`;
+  }
+
+  function setLoading(on) {
+    document.getElementById('loading').classList.toggle('hidden', !on);
+  }
+  function setError(on) {
+    document.getElementById('error').classList.toggle('hidden', !on);
+  }
+
+  // --------- Fetchers ---------
+  async function fetchMine(scope) {
+    const res = await fetch(`/api/bookings/me?scope=${scope}`);
+    if (res.status === 401) { location.href = '/login.html'; return []; }
+    if (!res.ok) throw new Error('fetch failed');
+    return res.json();
+  }
+
+  // --------- Renderers ---------
+  async function loadUpcoming() {
+    const box = document.getElementById('list-upcoming');
+    box.innerHTML = '';
+    setLoading(true); setError(false);
+    try {
+      const rows = await fetchMine('upcoming');
+      if (!rows.length) {
+        box.innerHTML = `<p class="text-gray-300">No upcoming bookings. Book your first class!</p>`;
+      } else {
+        box.innerHTML = rows.map(r => card(r, true)).join('');
       }
+    } catch (e) {
+      console.error(e); setError(true);
+    } finally { setLoading(false); }
+  }
 
-      async function loadBookings() {
-        try {
-          const response = await fetch("/api/bookings/me");
-          if (response.status === 401) {
-            window.location.href = "/login.html";
-            return;
-          }
-          if (!response.ok) {
-            throw new Error("Failed to fetch bookings");
-          }
-          const bookings = await response.json();
-
-          const upcomingList = document.getElementById("upcoming-list");
-          const historyList = document.getElementById("history-list");
-          const loading = document.getElementById("loading");
-          loading.style.display = "none";
-
-          const upcomingBookings = bookings.filter(b => (b.status || 'booked') === 'booked');
-          const historyBookings = bookings.filter(b => {
-            const status = b.status || 'booked';
-            return status === 'cancelled' || status === 'finished';
-          });
-
-          if (upcomingBookings.length === 0) {
-            upcomingList.innerHTML = '<p class="text-gray-200">No upcoming bookings. Book your first class!</p>';
-          } else {
-            upcomingList.innerHTML = upcomingBookings.map(b => renderBooking(b, true)).join("");
-          }
-
-          if (historyBookings.length === 0) {
-            historyList.innerHTML = '<p class="text-gray-200">No booking history yet.</p>';
-          } else {
-            historyList.innerHTML = historyBookings.map(b => renderBooking(b, false)).join("");
-          }
-        } catch (err) {
-          console.error(err);
-          document.getElementById("loading").style.display = "none";
-          document.getElementById("error").classList.remove("hidden");
-        }
-        finally {
-          document.getElementById("loading").style.display = "none";
-        }
-
+  async function loadHistory() {
+    const box = document.getElementById('list-history');
+    box.innerHTML = '';
+    setLoading(true); setError(false);
+    try {
+      const rows = await fetchMine('history');
+      if (!rows.length) {
+        box.innerHTML = `<p class="text-gray-300">No booking history yet.</p>`;
+      } else {
+        box.innerHTML = rows.map(r => card(r, false)).join('');
       }
+    } catch (e) {
+      console.error(e); setError(true);
+    } finally { setLoading(false); }
+  }
 
-      async function cancelBooking(id) {
-        if (!confirm("Are you sure you want to cancel this booking?")) return;
-        try {
-          const response = await fetch(`/api/bookings/${id}`, {
-            method: "DELETE",
-          });
-          if (!response.ok) {
-            throw new Error("Failed to cancel booking");
-          }
-          alert("Booking cancelled successfully.");
-          loadBookings();
-        } catch (err) {
-          console.error(err);
-          alert("Failed to cancel booking. Please try again.");
-        }
-      }
+  // --------- Actions ---------
+  async function markAsFinished(id, btn) {
+    if (!confirm('Mark this class as finished?')) return;
+    btn?.setAttribute('disabled', 'true');
+    try {
+      const r = await fetch(`/api/bookings/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'finished' })
+      });
+      if (!r.ok) throw new Error('update failed');
+      await loadUpcoming();            // item จะย้ายไป history โดยอัตโนมัติจาก backend rule
+      // optional: โหลด history ด้วยเพื่อรีเฟรชป้าย
+      // await loadHistory();
+      alert('Class marked as finished!');
+    } catch (e) {
+      console.error(e);
+      alert('Failed to update booking status. Please try again.');
+    } finally {
+      btn?.removeAttribute('disabled');
+    }
+  }
 
-      async function markAsFinished(id) {
-        if (!confirm("Mark this class as finished?")) return;
-        try {
-          const response = await fetch(`/api/bookings/${id}/status`, {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ status: "finished" }),
-          });
-          if (!response.ok) {
-            throw new Error("Failed to update booking status");
-          }
-          alert("Class marked as finished!");
-          loadBookings();
-        } catch (err) {
-          console.error(err);
-          alert("Failed to update booking status. Please try again.");
-        }
-      }
+  async function cancelBooking(id, btn) {
+    if (!confirm('Cancel this booking?')) return;
+    btn?.setAttribute('disabled', 'true');
+    try {
+      const r = await fetch(`/api/bookings/${id}`, { method: 'DELETE' });
+      if (!r.ok) throw new Error('cancel failed');
+      await loadUpcoming(); // ย้ายไป history (status = cancelled)
+      // await loadHistory();
+      alert('Booking cancelled.');
+    } catch (e) {
+      console.error(e);
+      alert('Failed to cancel booking.');
+    } finally {
+      btn?.removeAttribute('disabled');
+    }
+  }
 
-      loadBookings();
-    </script>
-  </body>
+  // --------- Tabs ---------
+  function switchTab(tab) {
+    const upBtn = document.getElementById('tab-upcoming');
+    const hiBtn = document.getElementById('tab-history');
+    const upSec = document.getElementById('section-upcoming');
+    const hiSec = document.getElementById('section-history');
+
+    const active = 'bg-blue-500';
+    const inactive = 'bg-gray-600';
+
+    if (tab === 'upcoming') {
+      upBtn.classList.remove(inactive); upBtn.classList.add(active);
+      hiBtn.classList.remove(active);   hiBtn.classList.add(inactive);
+      upSec.classList.remove('hidden'); hiSec.classList.add('hidden');
+      loadUpcoming();
+    } else {
+      hiBtn.classList.remove(inactive); hiBtn.classList.add(active);
+      upBtn.classList.remove(active);   upBtn.classList.add(inactive);
+      hiSec.classList.remove('hidden'); upSec.classList.add('hidden');
+      loadHistory();
+    }
+  }
+
+  // --------- Init ---------
+  (async function init() {
+    switchTab('upcoming'); // default
+  })();
+</script>
+</body>
 </html>
