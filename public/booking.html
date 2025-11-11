@@ -96,11 +96,10 @@
       function qp(key) {
         return new URLSearchParams(location.search).get(key) || "";
       }
-      function toISODate(d) {
-        // local date -> YYYY-MM-DD
-        const tzOffset = d.getTimezoneOffset() * 60000;
-        const local = new Date(d.getTime() - tzOffset);
-        return local.toISOString().slice(0, 10);
+      function toISODateLocal(d) {
+        // Local date -> YYYY-MM-DD (เลี่ยง timezone ทำให้วันเพี้ยน)
+        const tz = d.getTimezoneOffset() * 60000;
+        return new Date(d.getTime() - tz).toISOString().slice(0, 10);
       }
       function parseISODate(s) {
         const [y, m, d] = s.split("-").map(Number);
@@ -111,86 +110,101 @@
       }
 
       // ----------------- Schedule utils -----------------
-       function normalizeDayToAbbrev(token) {
-    if (!token) return "";
-    const t = token.toString().trim().toLowerCase();
-    const map = {
-      sun: "Sun", sunday: "Sun",
-      mon: "Mon", monday: "Mon",
-      tue: "Tue", tues: "Tue", tuesday: "Tue",
-      wed: "Wed", weds: "Wed", wednesday: "Wed",
-      thu: "Thu", thur: "Thu", thurs: "Thu", thursday: "Thu",
-      fri: "Fri", friday: "Fri",
-      sat: "Sat", saturday: "Sat",
-    };
-    // ตัดให้เหลือ 3 ตัวแรกถ้าเจอรูปแบบแปลก
-    return map[t] || map[t.slice(0,3)] || "";
-  }
-
-  // ✅ เวอร์ชัน “กันทุกเคส” ของ buildWeekSchedule
-function buildWeekSchedule(trainer) {
-  const sched = {};
-  if (!trainer) return sched;
-
-  // 1) บังคับให้ schedule กลายเป็น array เสมอ
-  let arr = [];
-  const raw = trainer.schedule;
-  if (Array.isArray(raw)) {
-    arr = raw;
-  } else if (typeof raw === "string") {
-    try { arr = JSON.parse(raw); } catch { arr = []; }
-  } else if (raw && typeof raw === "object") {
-    // เผื่อ backend ส่งเป็น object เช่น { Mon: "09:00–11:00", Thu: "09:00–11:00" }
-    for (const k of Object.keys(raw)) {
-      const day = normalizeDayToAbbrev(k);
-      const v = raw[k];
-      if (Array.isArray(v)) v.forEach(t => arr.push(`${day} ${t}`));
-      else if (typeof v === "string") arr.push(`${day} ${v}`);
-    }
-  }
-
-  // 2) แปลง dash แปลกๆ และแยกวัน/เวลาแบบหลวม (ไม่ใช้ regex เข้ม)
-  arr.forEach((slotRaw) => {
-    if (typeof slotRaw !== "string") return;
-
-    // แปลง en/em/figure/minus → hyphen, และจัดช่องว่าง
-    const s = slotRaw
-      .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g, "-")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    const i = s.indexOf(" ");
-    if (i < 0) return;
-
-    const dayToken = s.slice(0, i);
-    const timeToken = s.slice(i + 1); // เก็บ "09:00-11:00" ไว้ทั้งก้อน
-
-    const day = normalizeDayToAbbrev(dayToken);
-    if (!day || !timeToken) return;
-
-    if (!sched[day]) sched[day] = [];
-    sched[day].push(timeToken);
-  });
-
-  // ช่วยดีบั๊ก
-  console.log("BUILT SCHEDULE →", sched, "(raw:", trainer.schedule, ")");
-  return sched;
-}
-      function getFirstAvailableDate(sched, maxDays = 90, preferISO) {
-        const today = new Date();
-        for (let i = 0; i < maxDays; i++) {
-          const d = new Date(today);
-          d.setDate(today.getDate() + i);
-          const iso = toISODate(d);
-          const wk = weekdayKeyFromDateStr(iso);
-          if (sched[wk] && sched[wk].length) {
-            if (!preferISO || preferISO === iso) return iso;
-          }
-        }
-        return ""; // none found
+      function normalizeDayToAbbrev(token) {
+        if (!token) return "";
+        const t = token.toString().trim().toLowerCase();
+        const map = {
+          sun: "Sun", sunday: "Sun",
+          mon: "Mon", monday: "Mon",
+          tue: "Tue", tues: "Tue", tuesday: "Tue",
+          wed: "Wed", weds: "Wed", wednesday: "Wed",
+          thu: "Thu", thur: "Thu", thurs: "Thu", thursday: "Thu",
+          fri: "Fri", friday: "Fri",
+          sat: "Sat", saturday: "Sat",
+        };
+        return map[t] || map[t.slice(0,3)] || "";
       }
 
-      function refreshTimeOptionsForDate(sched, isoDate) {
+      // schedule -> บังคับเป็น Array เสมอ (รองรับ Array / String(JSON) / Object)
+      function coerceScheduleToArray(raw) {
+        if (Array.isArray(raw)) return raw;
+        if (typeof raw === "string") {
+          try { return JSON.parse(raw); } catch { return []; }
+        }
+        if (raw && typeof raw === "object") {
+          const out = [];
+          for (const k of Object.keys(raw)) {
+            const day = normalizeDayToAbbrev(k);
+            const v = raw[k];
+            if (Array.isArray(v)) v.forEach(t => typeof t === "string" && out.push(`${day} ${t}`));
+            else if (typeof v === "string") out.push(`${day} ${v}`);
+          }
+          return out;
+        }
+        return [];
+      }
+
+      // parser แบบ "หลวม" (ทนทานเหมือนหน้า Confirm)
+      function buildWeekScheduleLoose(trainer) {
+        const sched = {};
+        if (!trainer) return sched;
+
+        const arr = coerceScheduleToArray(trainer.schedule);
+
+        arr.forEach((slot) => {
+          if (typeof slot !== "string") return;
+
+          // รวม dash แปลกๆ → "-" และจัดช่องว่าง
+          const s = slot
+            .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g, "-")
+            .replace(/\s+/g, " ")
+            .trim();
+
+          // แยกด้วยช่องว่างแรก: "Mon 09:00-11:00" → "Mon" | "09:00-11:00"
+          const i = s.indexOf(" ");
+          if (i < 0) return;
+
+          const day = normalizeDayToAbbrev(s.slice(0, i));
+          const time = s.slice(i + 1);
+
+          if (!day || !time) return;
+          if (!sched[day]) sched[day] = [];
+          sched[day].push(time);
+        });
+
+        return sched;
+      }
+
+      // วันที่ล่วงหน้า (ที่มีคลาสจริง) 90 วัน
+      function getAvailableDates(sched, maxDays = 90) {
+        const dates = [];
+        let d = new Date();
+        for (let i = 0; i < maxDays; i++) {
+          const iso = toISODateLocal(d);
+          const wk = weekdayKeyFromDateStr(iso);
+          if (sched[wk] && sched[wk].length) dates.push(iso);
+          d.setDate(d.getDate() + 1);
+        }
+        return dates;
+      }
+
+      function fillDateOptions(sched) {
+        const dateInput = document.getElementById("date");
+        // ใส่ min/max เพื่อช่วย UX
+        const today = new Date();
+        const max = new Date();
+        max.setDate(today.getDate() + 90);
+        dateInput.min = toISODateLocal(today);
+        dateInput.max = toISODateLocal(max);
+
+        const availableDates = getAvailableDates(sched);
+        // ถ้าวันที่ปัจจุบันไม่ตรงตาราง ให้ใส่วันแรกที่ตรง
+        const first = availableDates[0] || "";
+        if (first) dateInput.value = first;
+        return availableDates;
+      }
+
+      function fillTimeOptionsForDate(sched, isoDate) {
         const timeSel = document.getElementById("timeSlot");
         const note = document.getElementById("scheduleNote");
         const btn = document.getElementById("bookBtn");
@@ -221,77 +235,43 @@ function buildWeekSchedule(trainer) {
         }
       }
 
+      function setLoading(isLoading){
+        const bookBtn = document.getElementById("bookBtn");
+        const timeSel = document.getElementById("timeSlot");
+        const note    = document.getElementById("scheduleNote");
+        if (isLoading){
+          bookBtn.disabled = true;
+          timeSel.disabled = true;
+          timeSel.innerHTML = '<option value="">Loading…</option>';
+          note.textContent = "Loading schedule…";
+        } else {
+          timeSel.disabled = false;
+          if (!timeSel.options.length) {
+            timeSel.innerHTML = '<option value="">Choose a time</option>';
+          }
+          note.textContent = "";
+        }
+      }
+
       async function fetchTrainers() {
         const res = await fetch("/api/trainers");
         if (!res.ok) throw new Error("Failed to load trainers");
         return res.json();
       }
 
-      async function loadScheduleAndRefresh(trainerName, preferredISO, preferredTime) {
-        // Load trainers, find selected one, build sched
-        let sched = {};
-        try {
-          const trainers = await fetchTrainers();
-          console.log("TRAINERS API RAW =", trainers);
-          const trainer = trainers.find((t) => t.name === trainerName);
-          console.log("Selected trainer =", trainer);
-          console.log("Raw trainer.schedule =", trainer?.schedule);
-          sched = buildWeekSchedule(trainer);
-        } catch (e) {
-          console.error("Failed to fetch trainer schedule:", e);
-          sched = {};
-        }
+      async function init() {
+        setLoading(true);
 
-        // Decide default date (prefer query date if valid)
-        let defaultISO = preferredISO;
-        if (defaultISO) {
-          const wk = weekdayKeyFromDateStr(defaultISO);
-          if (!sched[wk] || !sched[wk].length) {
-            defaultISO = ""; // not valid for this trainer
-          }
-        }
-        if (!defaultISO) {
-          defaultISO = getFirstAvailableDate(sched, 90);
-        }
-
-        const dateInput = document.getElementById("date");
-        dateInput.value = defaultISO || "";
-
-        // Optional min/max to help UX (today .. +90d)
-        const today = new Date();
-        const max = new Date();
-        max.setDate(today.getDate() + 90);
-        dateInput.min = toISODate(today);
-        dateInput.max = toISODate(max);
-
-        refreshTimeOptionsForDate(sched, dateInput.value);
-
-        // if a preferred time was passed (e.g., from URL), keep it if valid
-        if (preferredTime) {
-          const sel = document.getElementById("timeSlot");
-          const has = Array.from(sel.options).some((o) => o.value === preferredTime);
-          if (has) sel.value = preferredTime;
-        }
-
-        // Hook date change to update times
-        dateInput.onchange = (e) => {
-          refreshTimeOptionsForDate(sched, e.target.value);
-        };
-      }
-
-      // ----------------- Init -----------------
-      document.addEventListener("DOMContentLoaded", async () => {
-        const trainerSelect = document.getElementById("trainer");
-
-        // Read query params
+        // Query params
         let trainerName = qp("trainer");
-        let className = qp("class");
-        let price = qp("price");
-        let dateQ = qp("date");
-        let timeQ = qp("time");
-        let classId = qp("classId");
+        let className   = qp("class");
+        let price       = qp("price");
+        let dateQ       = qp("date");
+        let timeQ       = qp("time");
+        let classId     = qp("classId");
 
-        // Set form fields
+        // set defaults/hidden
+        const trainerSelect = document.getElementById("trainer");
         if (trainerName) {
           const trainerOption = Array.from(trainerSelect.options).find((opt) => opt.value === trainerName);
           if (trainerOption) {
@@ -299,27 +279,76 @@ function buildWeekSchedule(trainer) {
             document.getElementById("trainerId").value = trainerOption.getAttribute("data-id");
           }
         } else {
-          // default to current selection
           document.getElementById("trainerId").value = trainerSelect.selectedOptions[0].getAttribute("data-id");
           trainerName = trainerSelect.value;
         }
-
         document.getElementById("class").value = className || "";
         document.getElementById("price").value = price || "";
         document.getElementById("classId").value = classId || "";
 
-        // When trainer changes, update hidden id and reload schedule/date/time
-        trainerSelect.addEventListener("change", async (e) => {
-          const selectedOption = e.target.selectedOptions[0];
-          document.getElementById("trainerId").value = selectedOption.getAttribute("data-id");
-          await loadScheduleAndRefresh(selectedOption.value, "", "");
-          // clear previously chosen time
-          document.getElementById("timeSlot").value = "";
+        // โหลด trainers + สร้าง schedule แบบหลวม
+        let sched = {};
+        try {
+          const trainers = await fetchTrainers();
+          const trainer = trainers.find((t) => t.name === trainerName);
+          sched = buildWeekScheduleLoose(trainer);
+        } catch (e) {
+          console.error("Failed to fetch trainer schedule:", e);
+          sched = {};
+        }
+
+        // เติมวันและเวลา
+        const availableDates = fillDateOptions(sched);
+
+        let defaultISO = dateQ;
+        if (!defaultISO || !availableDates.includes(defaultISO)) {
+          defaultISO = availableDates[0] || "";
+        }
+        document.getElementById("date").value = defaultISO;
+
+        if (defaultISO) {
+          fillTimeOptionsForDate(sched, defaultISO);
+          if (timeQ) {
+            const sel = document.getElementById("timeSlot");
+            const has = Array.from(sel.options).some((o) => o.value === timeQ);
+            if (has) sel.value = timeQ;
+          }
+        }
+
+        // เมื่อเปลี่ยนวัน → เติมเวลาใหม่
+        document.getElementById("date").addEventListener("change", (e) => {
+          fillTimeOptionsForDate(sched, e.target.value);
         });
 
-        // Initial load with URL preferences (if any)
-        await loadScheduleAndRefresh(trainerName, dateQ, timeQ);
-      });
+        // เปลี่ยนเทรนเนอร์ → โหลดตารางใหม่
+        trainerSelect.addEventListener("change", async (e) => {
+          setLoading(true);
+          const selectedOption = e.target.selectedOptions[0];
+          document.getElementById("trainerId").value = selectedOption.getAttribute("data-id");
+          const name = selectedOption.value;
+
+          let newSched = {};
+          try {
+            const trainers = await fetchTrainers();
+            const trainer = trainers.find((t) => t.name === name);
+            newSched = buildWeekScheduleLoose(trainer);
+          } catch (err) {
+            console.error("Failed to fetch trainer schedule:", err);
+            newSched = {};
+          }
+
+          const avail = fillDateOptions(newSched);
+          const first = avail[0] || "";
+          document.getElementById("date").value = first;
+          fillTimeOptionsForDate(newSched, first);
+          document.getElementById("timeSlot").value = "";
+          setLoading(false);
+        });
+
+        setLoading(false);
+      }
+
+      document.addEventListener("DOMContentLoaded", () => { init(); });
     </script>
   </body>
 </html>
