@@ -144,7 +144,8 @@
   // --------- Actions ---------
   async function markAsFinished(id, btn) {
     if (!confirm('Mark this class as finished?')) return;
-    btn?.setAttribute('disabled', 'true');
+    btn?.setAttribute('disabled','true');
+
     try {
       const r = await fetch(`/api/bookings/${id}/status`, {
         method: 'PATCH',
@@ -152,8 +153,10 @@
         body: JSON.stringify({ status: 'finished' })
       });
       if (!r.ok) throw new Error('update failed');
-      await loadUpcoming(); // ย้ายไป history โดย backend
-      alert('Class marked as finished!');
+
+      // รีเฟรชทั้งสองลิสต์แล้วพาไป History
+      await Promise.all([ loadUpcoming(), loadHistory() ]);
+      switchTab('history');
     } catch (e) {
       console.error(e);
       alert('Failed to update booking status. Please try again.');
@@ -164,12 +167,15 @@
 
   async function cancelBooking(id, btn) {
     if (!confirm('Cancel this booking?')) return;
-    btn?.setAttribute('disabled', 'true');
+    btn?.setAttribute('disabled','true');
+
     try {
       const r = await fetch(`/api/bookings/${id}`, { method: 'DELETE' });
       if (!r.ok) throw new Error('cancel failed');
-      await loadUpcoming(); // ย้ายไป history (status = cancelled)
-      alert('Booking cancelled.');
+
+      // รีเฟรชทั้งสองลิสต์แล้วพาไป History
+      await Promise.all([ loadUpcoming(), loadHistory() ]);
+      switchTab('history');
     } catch (e) {
       console.error(e);
       alert('Failed to cancel booking.');
