@@ -163,28 +163,23 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
 
     const trainerData = [
       {
-        name: "John Carter", //มี key อื่นต่อ → ต้องมี ,ไม่มี key อื่น → ไม่ต้องมี comma
-      
+        name: "John Carter", 
         schedule: ["Mon 09:00–11:00", "Thu 09:00–11:00"],
       },
       {
         name: "Sophia Miller",
-      
         schedule: ["Tue 11:30–13:00", "Fri 11:30–13:00"],
       },
       {
         name: "Michael Brown",
-       
         schedule: ["Wed 13:30–15:00", "Sat 13:30–15:00"],
       },
       {
         name: "Emma Wilson",
-        
         schedule: ["Thu 15:30–17:00", "Sun 15:30–17:00"],
       },
       {
         name: "Daniel Smith",
-      
         schedule: ["Fri 17:30–19:00", "Sun 17:30–19:00"],
       },
     ];
