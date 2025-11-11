@@ -293,7 +293,7 @@ app.post("/signup", async (req: Request, res: Response) => {
       return res
         .status(400)
         .send(
-          "Name, password, and email, and phone are required.” <a href='/signup.html'>Back</a>"
+          "Name, password, and email, and phone are required. <a href='/signup.html'>Back</a>"
         );
     }
 
