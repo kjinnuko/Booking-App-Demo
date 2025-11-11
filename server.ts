@@ -165,17 +165,31 @@ app.post(
 
     } catch (err: any) {
       // กันจองซ้ำ: addBooking จะโยน code 'DUPLICATE_BOOKING' หรือ DB โยน 23505
-      if (err?.code === "DUPLICATE_BOOKING" || err?.code === "23505") {
-        res.status(409).send(`
-          <html><body style="font-family: ui-sans-serif">
-            <h2>Duplicate booking</h2>
-            <p>You already booked this class at the same time.</p>
-            <p><a href="/trainers.html">← Back to Trainers</a></p>
-          </body></html>
-        `);
-        return;
-      }
-      next(err);
+    if (err?.code === "DUPLICATE_BOOKING" || err?.code === "23505") {
+    // เก็บค่าที่ผู้ใช้เลือกไว้เพื่อเติมกลับฟอร์ม
+    const qs = new URLSearchParams({
+      // บอกหน้า booking ว่าเป็น duplicate
+      dup: "1",
+      // ใส่ข้อความ (จะโชว์ใน modal)
+      msg: "You already have a booking at this time.",
+
+      // คืนค่า context เพื่อเติมกลับ (ระวัง null/undefined)
+      trainer: String(req.body.trainer || ""),
+      trainerId: String(req.body.trainerId || ""),
+      class: String(req.body.class || ""),
+      classId: String(req.body.classId || ""),
+      price: String(req.body.price || ""),
+      date: String(req.body.date || ""),
+      time: String(req.body.timeSlot || ""),
+    }).toString();
+
+    // redirect กลับหน้าเดิม พร้อมพารามิเตอร์
+    res.redirect(`/booking.html?${qs}`);
+    return;
+  }
+
+  // อื่น ๆ ไป error handler เดิม
+  next(err);
     }
   }
 );
