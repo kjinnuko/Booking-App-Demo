@@ -111,22 +111,48 @@
       }
 
       // ----------------- Schedule utils -----------------
+       function normalizeDayToAbbrev(token) {
+    if (!token) return "";
+    const t = token.toString().trim().toLowerCase();
+    const map = {
+      sun: "Sun", sunday: "Sun",
+      mon: "Mon", monday: "Mon",
+      tue: "Tue", tues: "Tue", tuesday: "Tue",
+      wed: "Wed", weds: "Wed", wednesday: "Wed",
+      thu: "Thu", thur: "Thu", thurs: "Thu", thursday: "Thu",
+      fri: "Fri", friday: "Fri",
+      sat: "Sat", saturday: "Sat",
+    };
+    // ตัดให้เหลือ 3 ตัวแรกถ้าเจอรูปแบบแปลก
+    return map[t] || map[t.slice(0,3)] || "";
+  }
+      
+      
       function buildWeekSchedule(trainer) {
-        // Expect trainer.schedule like ["Mon 09:00-11:00","Thu 14:00-16:00"]
-        const sched = {};
-        if (trainer && Array.isArray(trainer.schedule)) {
-          trainer.schedule.forEach((slot) => {
-            if (typeof slot !== "string") return;
-            const parts = slot.trim().split(/\s+/);
-            const day = parts[0]; // Mon/Tue/...
-            const time = parts.slice(1).join(" "); // "09:00-11:00"
-            if (!day || !time) return;
-            if (!sched[day]) sched[day] = [];
-            sched[day].push(time);
-          });
-        }
-        return sched;
-      }
+    // คืนตารางแบบ { Mon: ["09:00-11:00"], Thu: ["09:00-11:00"] }
+    const sched = {};
+    if (!trainer || !Array.isArray(trainer.schedule)) return sched;
+
+    trainer.schedule.forEach((slotRaw) => {
+      if (typeof slotRaw !== "string") return;
+
+      // 1) ลบอักขระแปลก/ช่องว่างเกิน  2) แปลง en dash → hyphen
+      let s = slotRaw.replace(/\u2013/g, "-").replace(/\s+/g, " ").trim();
+
+      // รองรับทั้ง "Mon 09:00-11:00" หรือ "Monday 09:00-11:00"
+      const m = s.match(/^([A-Za-z]+)\s+([0-2]\d:[0-5]\d)\s*-\s*([0-2]\d:[0-5]\d)$/);
+      if (!m) return;
+
+      const dayAbbrev = normalizeDayToAbbrev(m[1]);
+      if (!dayAbbrev) return;
+
+      const timeStr = `${m[2]}-${m[3]}`;
+      if (!sched[dayAbbrev]) sched[dayAbbrev] = [];
+      sched[dayAbbrev].push(timeStr);
+    });
+
+    return sched;
+  }
 
       function getFirstAvailableDate(sched, maxDays = 90, preferISO) {
         const today = new Date();
