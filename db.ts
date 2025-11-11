@@ -241,6 +241,30 @@ export async function addUser(
   return { id: res.rows[0].id };
 }
 
+export async function updateBookingStatus(
+  id: string,
+  userId: string,
+  status: string
+): Promise<any | null> {
+  const allowed = ["booked", "finished", "cancelled"];
+
+  // กัน status แปลก
+  if (!allowed.includes(status)) {
+    throw new Error(`Invalid status: ${status}`);
+  }
+
+  const q = `
+    UPDATE bookings
+    SET status = $1
+    WHERE id = $2
+      AND "userId" = $3
+    RETURNING id, status, "bookedTime", "createdAt", price, "trainerId", "classId";
+  `;
+
+  const res = await pool.query(q, [status, id, userId]);
+  return res.rows[0] || null;
+}
+
 export async function findUser(
   name: string,
   password: string
