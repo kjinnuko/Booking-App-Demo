@@ -13,6 +13,7 @@ import {
   getUserById,
   getPowerBIEmbedLinks,
   listClasses,
+  updateBookingStatus,
 } from "./db";
 
 const app = express();
@@ -241,13 +242,60 @@ app.get("/api/bookings", requireLogin, async (_req: Request, res: Response) => {
   res.json(rows);
 });
 
+app.patch(
+  "/api/bookings/:id/status",
+  requireLogin,
+  async (req: Request, res: Response) => {
+    try {
+      const id = req.params.id;
+      const userId = req.user!.id;
+      const status = String(req.body.status || "").toLowerCase();
+
+      const allowed = new Set(["booked", "finished", "cancelled"]);
+      if (!allowed.has(status)) {
+        return res.status(400).json({ error: "Invalid status" });
+      }
+
+      const ok = await updateBookingStatus(id, userId, status as any);
+      if (!ok) return res.status(404).json({ error: "Not found" });
+
+      res.json({ ok: true, id, status });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: "Failed to update status" });
+    }
+  }
+);
+
+
 app.get(
   "/api/bookings/me",
   requireLogin,
   async (req: Request, res: Response) => {
-    const user = req.user!;
-    const rows = await listUserBookings(user.id);
-    res.json(rows);
+    const userId = req.user!.id;
+    const scope = String(req.query.scope || "all").toLowerCase();
+    // ใช้ NOW() เทียบเวลา ถ้าเวลาที่เก็บเป็น UTC อยู่แล้วก็โอเค
+    const nowClause = `NOW()`;
+
+    let whereExtra = "";
+    if (scope === "upcoming") {
+      whereExtra = `AND b.status = 'booked' AND b."bookedTime" >= ${nowClause}`;
+    } else if (scope === "history") {
+      whereExtra = `AND (b.status IN ('finished','cancelled') OR b."bookedTime" < ${nowClause})`;
+    }
+
+    const rows = await pool.query(
+      `SELECT b.id, b.name, b."createdAt", b."bookedTime", b.price, b.status,
+              t.name AS trainer, c.name AS class
+         FROM bookings b
+         JOIN trainers t ON b."trainerId" = t.id
+         JOIN classes  c ON b."classId"  = c.id
+        WHERE b."userId" = $1
+              ${whereExtra}
+        ORDER BY b."bookedTime" DESC`,
+      [userId]
+    );
+    res.json(rows.rows);
   }
 );
 
@@ -261,9 +309,9 @@ app.delete(
       if (!bookingId) {
         return res.status(400).json({ error: "Booking ID is required" });
       }
-      // Assume db has a deleteBooking function
-      await deleteBooking(bookingId, userId);
-      res.json({ message: "Booking cancelled" });
+      const ok = await updateBookingStatus(bookingId, userId, "cancelled");
+      if (!ok) return res.status(404).json({ error: "Not found" });
+      res.json({ message: "Booking cancelled", id: bookingId, status: "cancelled" });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Failed to cancel booking" });
