@@ -92,8 +92,44 @@
       </p>
     </div>
 
+<div id="dupModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/50"></div>
+  <div class="relative mx-auto mt-24 w-[92%] max-w-md rounded-xl bg-white p-6 shadow-xl">
+    <h3 class="text-lg font-semibold text-gray-900">Duplicate booking</h3>
+    <p id="dupMsg" class="mt-2 text-gray-700">
+      You already have a booking at this time.
+    </p>
+    <div class="mt-6 flex justify-end gap-2">
+      <button id="dupClose" class="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+        OK
+      </button>
+    </div>
+  </div>
+</div>
+    
     <script>
       /* ----------------- Helpers ----------------- */
+
+      function openDupModal(message) {
+  const m = document.getElementById("dupModal");
+  const msg = document.getElementById("dupMsg");
+  if (message) msg.textContent = message;
+  m.classList.remove("hidden");
+}
+function closeDupModal() {
+  document.getElementById("dupModal").classList.add("hidden");
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("dupClose");
+  if (btn) btn.addEventListener("click", closeDupModal);
+
+  // ถ้ามี dup=1 ใน query ให้เปิด modal
+  const params = new URLSearchParams(location.search);
+  if (params.get("dup") === "1") {
+    openDupModal(params.get("msg") || "You already have a booking at this time.");
+  }
+});
   function lockPastDates(dateInput) {
   // คืนค่า YYYY-MM-DD ตามเวลาท้องถิ่น
   const todayISO = toISODateLocal(new Date());
