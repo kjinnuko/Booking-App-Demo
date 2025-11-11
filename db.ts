@@ -330,26 +330,46 @@ export async function getClassById(id: string): Promise<any | null> {
 }
 
 export async function listTrainers(): Promise<any[]> {
-  const trainerRes = await pool.query(`
-    SELECT DISTINCT t.id, t.name, t.schedule, c.id AS class_id, c.name AS class_name, c.price, c.about, c.syllabus, c.level, c.length, c.group_size
-    FROM trainers t
-    JOIN bookings b ON t.id = b.trainerId
-    JOIN classes c ON b.classId = c.id
-    ORDER BY t.name
-  `);
+  const q = `
+    SELECT
+      t.id AS trainer_id,
+      t.name AS trainer_name,
+      t.schedule AS trainer_schedule,
+      
+      c.id AS class_id,
+      c.name AS class_name,
+      c.price AS price,
+      c.about AS about,
+      c.syllabus AS syllabus,
+      c.level AS level,
+      c.length AS length,
+      c.group_size AS group_size
 
-  return trainerRes.rows.map((t) => ({
-    id: t.id,
-    name: t.name,
-    schedule: t.schedule,
-    class: t.class_name,
-    classId: t.class_id,
-    price: t.price,
-    about: t.about,
-    syllabus: t.syllabus,
-    level: t.level,
-    length: t.length,
-    group_size: t.group_size
+    FROM trainers t
+    LEFT JOIN bookings b
+      ON t.id = b.trainerId
+    LEFT JOIN classes c
+      ON b.classId = c.id
+    GROUP BY
+      t.id, t.name, t.schedule,
+      c.id, c.name, c.price, c.about, c.syllabus, c.level, c.length, c.group_size
+    ORDER BY t.name
+  `;
+
+  const result = await pool.query(q);
+
+  return result.rows.map((r) => ({
+    id: r.trainer_id,
+    name: r.trainer_name,
+    schedule: r.trainer_schedule,
+    classId: r.class_id,
+    class: r.class_name,
+    price: r.price,
+    about: r.about,
+    syllabus: r.syllabus,
+    level: r.level,
+    length: r.length,
+    group_size: r.group_size,
   }));
 }
 
