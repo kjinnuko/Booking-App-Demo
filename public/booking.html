@@ -25,11 +25,11 @@
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           required
             >
-            <option value="">Daniel Smith</option>
-            <option value="">Emma Wilson</option>
-            <option value="">John Carter</option>
-            <option value="">Michael Brown</option>
-            <option value="">Sophia Miller</option>
+            <option value="Daniel Smith" data-id="1">Daniel Smith</option>
+            <option value="Emma Wilson" data-id="2">Emma Wilson</option>
+            <option value="John Carte" data-id="3">John Carter</option>
+            <option value="Michael Brown" data-id="4">Michael Brown</option>
+            <option value="Sophia Miller" data-id="5">Sophia Miller</option>
             </select> 
              <!--Class-->
           <label for="class" class="block text-gray-700 font-semibold mb-2"
@@ -190,11 +190,26 @@
         let trainerId = qp("trainerId");
         let classId = qp("classId");
 
-        document.getElementById("trainer").value = trainerName;
+        // เซ็ตค่าเริ่มต้นในฟอร์ม
+        const trainerSelect = document.getElementById("trainer");
+        const trainerOption = Array.from(trainerSelect.options).find(opt => opt.value === trainerName);
+        if (trainerOption) {
+          trainerSelect.value = trainerName;
+          document.getElementById("trainerId").value = trainerOption.getAttribute("data-id");
+        }
+
         document.getElementById("class").value = className;
         document.getElementById("price").value = price;
-        document.getElementById("trainerId").value = trainerId;
         document.getElementById("classId").value = classId;
+
+  // อัปเดต trainerId เมื่อเปลี่ยนชื่อ Trainer
+        trainerSelect.addEventListener("change", (e) => {
+        const selectedOption = e.target.selectedOptions[0];
+        const trainerName = selectedOption.value;
+        const trainerId = selectedOption.getAttribute("data-id");
+        document.getElementById("trainerId").value = trainerId;
+        });
+
 
         // Fetch trainer schedule from DB
         let sched = {};
