@@ -1,199 +1,267 @@
-<script>
-/* ----------------- Helpers ----------------- */
-function qp(key) {
-  return new URLSearchParams(location.search).get(key) || "";
-}
-function toISODate(d) {
-  const tz = d.getTimezoneOffset() * 60000;
-  return new Date(d.getTime() - tz).toISOString().slice(0, 10);
-}
-function parseISODate(s) {
-  const [y, m, d] = s.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-function weekdayKeyFromDateStr(iso) {
-  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][
-    parseISODate(iso).getDay()
-  ];
-}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Class Booking</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-neutral-800 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-2xl">
+      <h1 class="text-3xl font-bold text-white mb-6">Class Booking</h1>
 
-/* ----------------- DAY NORMALIZER ----------------- */
-function normalizeDayToAbbrev(token) {
-  if (!token) return "";
-  const t = token.toString().trim().toLowerCase();
-  const map = {
-    sun: "Sun", sunday: "Sun",
-    mon: "Mon", monday: "Mon",
-    tue: "Tue", tues: "Tue", tuesday: "Tue",
-    wed: "Wed", weds: "Wed", wednesday: "Wed",
-    thu: "Thu", thur: "Thu", thurs: "Thu", thursday: "Thu",
-    fri: "Fri", friday: "Fri",
-    sat: "Sat", saturday: "Sat",
-  };
-  return map[t] || map[t.slice(0, 3)] || "";
-}
+      <form method="POST" action="/book" class="bg-white p-6 rounded-lg shadow-md space-y-4">
+        <div>
+          <label for="trainer" class="block text-gray-700 font-semibold mb-2">Trainer</label>
+          <select
+            id="trainer"
+            name="trainer"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          >
+            <option value="Daniel Smith" data-id="1">Daniel Smith</option>
+            <option value="Emma Wilson" data-id="2">Emma Wilson</option>
+            <option value="John Carter" data-id="3">John Carter</option>
+            <option value="Michael Brown" data-id="4">Michael Brown</option>
+            <option value="Sophia Miller" data-id="5">Sophia Miller</option>
+          </select>
 
-/* ----------------- FETCH TRAINERS ONLY /api/trainers ----------------- */
-async function fetchTrainers() {
-  const r = await fetch("/api/trainers", {
-    headers: { Accept: "application/json" },
-  });
+          <!-- Class -->
+          <label for="class" class="block text-gray-700 font-semibold mb-2 mt-4">Class</label>
+          <input
+            id="class"
+            name="class"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            readonly
+          />
+        </div>
 
-  if (!r.ok) throw new Error(`/api/trainers → ${r.status}`);
-  return r.json();
-}
+        <!-- Price -->
+        <div>
+          <label for="price" class="block text-gray-700 font-semibold mb-2">Price (THB)</label>
+          <input
+            id="price"
+            name="price"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            readonly
+          />
+        </div>
 
-/* ----------------- BUILD WEEK SCHEDULE ----------------- */
-function buildWeekSchedule(trainer) {
-  const sched = {};
-  if (!trainer) return sched;
+        <!-- Date -->
+        <div>
+          <label for="date" class="block text-gray-700 font-semibold mb-2">Date</label>
+          <input
+            id="date"
+            name="date"
+            type="date"
+            required
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <p class="text-xs text-gray-500 mt-1">Only dates that match the trainer’s weekly schedule will show time slots.</p>
+        </div>
 
-  let raw = trainer.schedule;
-  let arr = [];
+        <!-- Time -->
+        <div>
+          <label for="timeSlot" class="block text-gray-700 font-semibold mb-2">Time</label>
+          <select
+            id="timeSlot"
+            name="timeSlot"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          >
+            <option value="">Choose a time</option>
+          </select>
+          <div id="scheduleNote" class="text-sm text-gray-500 mt-2"></div>
+        </div>
 
-  if (Array.isArray(raw)) arr = raw;
-  else if (typeof raw === "string") {
-    try {
-      arr = JSON.parse(raw);
-    } catch {
-      console.warn("Invalid schedule JSON string", raw);
-      arr = [];
-    }
-  }
+        <input type="hidden" name="trainerId" id="trainerId" />
+        <input type="hidden" name="classId" id="classId" />
 
-  arr.forEach((slotRaw) => {
-    if (typeof slotRaw !== "string") return;
+        <button
+          id="bookBtn"
+          class="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          style="margin-top: 12px"
+        >
+          Book Now
+        </button>
+      </form>
 
-    let s = slotRaw.replace(/\u2013/g, "-").replace(/\s+/g, " ").trim();
+      <p class="mt-4">
+        <a href="/trainers.html" class="text-blue-500 hover:underline">← Back to class</a>
+      </p>
+    </div>
 
-    const m = s.match(/^([A-Za-z]+)\s+([0-2]\d:[0-5]\d)\s*-\s*([0-2]\d:[0-5]\d)$/);
-    if (!m) return;
+    <script>
+      /* ----------------- Helpers ----------------- */
+      function qp(key){ return new URLSearchParams(location.search).get(key)||""; }
+      function toISODateLocal(d){ const tz=d.getTimezoneOffset()*60000; return new Date(d.getTime()-tz).toISOString().slice(0,10); }
+      function parseISODate(s){ const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); }
+      function weekdayKeyFromDateStr(iso){ return ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][parseISODate(iso).getDay()]; }
 
-    const dayAbbrev = normalizeDayToAbbrev(m[1]);
-    if (!dayAbbrev) return;
+      /* ----------------- Normalizers ----------------- */
+      function normalizeDayToAbbrev(token){
+        if(!token) return "";
+        const t=token.toString().trim().toLowerCase();
+        const map={sun:"Sun",sunday:"Sun",mon:"Mon",monday:"Mon",tue:"Tue",tues:"Tue",tuesday:"Tue",wed:"Wed",weds:"Wed",wednesday:"Wed",thu:"Thu",thur:"Thu",thurs:"Thu",thursday:"Thu",fri:"Fri",friday:"Fri",sat:"Sat",saturday:"Sat"};
+        return map[t]||map[t.slice(0,3)]||"";
+      }
 
-    const timeStr = `${m[2]}-${m[3]}`;
-    if (!sched[dayAbbrev]) sched[dayAbbrev] = [];
-    sched[dayAbbrev].push(timeStr);
-  });
+      /* ----------------- Fetch (only /api/trainers) ----------------- */
+      async function fetchTrainers(){
+        const r=await fetch("/api/trainers",{ headers:{ Accept:"application/json" } });
+        if(!r.ok) throw new Error(`/api/trainers → ${r.status}`);
+        return r.json();
+      }
 
-  return sched;
-}
+      /* ----------------- Build schedule (robust) ----------------- */
+      function buildWeekSchedule(trainer){
+        const sched={}; if(!trainer) return sched;
 
-/* ----------------- SCHEDULE TO UI ----------------- */
-function refreshTimeOptionsForDate(sched, isoDate) {
-  const timeSel = document.getElementById("timeSlot");
-  const note = document.getElementById("scheduleNote");
-  const btn = document.getElementById("bookBtn");
+        // รับได้ทั้ง Array หรือ String(JSON)
+        let arr=[];
+        const raw=trainer.schedule;
+        if(Array.isArray(raw)) arr=raw;
+        else if(typeof raw==="string"){
+          try{ arr=JSON.parse(raw); }catch{ arr=[]; }
+        }
 
-  timeSel.innerHTML = '<option value="">Choose a time</option>';
+        arr.forEach(slotRaw=>{
+          if(typeof slotRaw!=="string") return;
+          // แปลง en dash/em dash/minus → hyphen และจัดช่องว่าง
+          const s=slotRaw.replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g,"-").replace(/\s+/g," ").trim();
 
-  if (!isoDate) {
-    note.textContent = "Please pick a date.";
-    btn.disabled = true;
-    return;
-  }
+          // ยอมรับ "Mon 09:00-11:00" หรือ "Monday 09:00-11:00"
+          const m=s.match(/^([A-Za-z]+)\s+([0-2]\d:[0-5]\d)\s*-\s*([0-2]\d:[0-5]\d)$/);
+          if(!m) return;
 
-  const wk = weekdayKeyFromDateStr(isoDate);
-  const slots = sched[wk] || [];
+          const day=normalizeDayToAbbrev(m[1]);
+          if(!day) return;
 
-  if (slots.length) {
-    slots.forEach((t) => {
-      const opt = document.createElement("option");
-      opt.value = t;
-      opt.textContent = t;
-      timeSel.appendChild(opt);
-    });
-    note.textContent = `Available on ${wk}: ${slots.join(", ")}`;
-    btn.disabled = false;
-  } else {
-    note.textContent = `No classes on this day.`;
-    btn.disabled = true;
-  }
-}
+          const timeStr=`${m[2]}-${m[3]}`;
+          if(!sched[day]) sched[day]=[];
+          sched[day].push(timeStr);
+        });
 
-function getFirstAvailableDate(sched, maxDays = 90) {
-  const today = new Date();
-  for (let i = 0; i < maxDays; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    const iso = toISODate(d);
-    const wk = weekdayKeyFromDateStr(iso);
-    if (sched[wk] && sched[wk].length) return iso;
-  }
-  return "";
-}
+        return sched;
+      }
 
-/* ----------------- MAIN INIT ----------------- */
-async function loadScheduleAndRefresh(trainerName, preferredISO, preferredTime) {
-  let sched = {};
+      /* ----------------- UI fillers ----------------- */
+      function refreshTimeOptionsForDate(sched, isoDate){
+        const timeSel=document.getElementById("timeSlot");
+        const note=document.getElementById("scheduleNote");
+        const btn=document.getElementById("bookBtn");
 
-  try {
-    const trainers = await fetchTrainers();
-    const trainer = trainers.find((t) => t.name === trainerName);
-    sched = buildWeekSchedule(trainer);
-  } catch (e) {
-    console.error(e);
-    sched = {};
-  }
+        timeSel.innerHTML='<option value="">Choose a time</option>';
 
-  let defaultISO = preferredISO;
-  if (defaultISO) {
-    const wk = weekdayKeyFromDateStr(defaultISO);
-    if (!sched[wk] || !sched[wk].length) defaultISO = "";
-  }
-  if (!defaultISO) defaultISO = getFirstAvailableDate(sched, 90);
+        if(!isoDate){
+          note.textContent="Please pick a date.";
+          btn.disabled=true; return;
+        }
+        const wk=weekdayKeyFromDateStr(isoDate);
+        const slots=sched[wk]||[];
 
-  const dateInput = document.getElementById("date");
-  dateInput.value = defaultISO || "";
+        if(slots.length){
+          slots.forEach(t=>{
+            const opt=document.createElement("option");
+            opt.value=t; opt.textContent=t;
+            timeSel.appendChild(opt);
+          });
+          note.textContent=`Available on ${wk}: ${slots.join(", ")}`;
+          btn.disabled=false;
+        }else{
+          note.textContent="No classes on this day.";
+          btn.disabled=true;
+        }
+      }
 
-  refreshTimeOptionsForDate(sched, dateInput.value);
+      function getFirstAvailableDate(sched, maxDays=90){
+        const today=new Date();
+        for(let i=0;i<maxDays;i++){
+          const d=new Date(today);
+          d.setDate(today.getDate()+i);
+          const iso=toISODateLocal(d);
+          const wk=weekdayKeyFromDateStr(iso);
+          if(sched[wk] && sched[wk].length) return iso;
+        }
+        return "";
+      }
 
-  if (preferredTime) {
-    const sel = document.getElementById("timeSlot");
-    const has = Array.from(sel.options).some((o) => o.value === preferredTime);
-    if (has) sel.value = preferredTime;
-  }
+      /* ----------------- Main load ----------------- */
+      async function loadScheduleAndRefresh(trainerName, preferredISO, preferredTime){
+        let sched={};
+        try{
+          const trainers=await fetchTrainers();
+          const trainer=trainers.find(t=>t.name===trainerName);
+          sched=buildWeekSchedule(trainer);
+        }catch(e){
+          // ถ้าโหลดไม่ได้ ให้โชว์ข้อความ และปิดปุ่ม
+          const note=document.getElementById("scheduleNote");
+          note.textContent="Cannot load trainers from /api/trainers.";
+          note.classList.add("text-red-600");
+          document.getElementById("bookBtn").disabled=true;
+          return;
+        }
 
-  dateInput.onchange = (e) => {
-    refreshTimeOptionsForDate(sched, e.target.value);
-  };
-}
+        // เลือกวันเริ่มต้น
+        let defaultISO=preferredISO;
+        if(defaultISO){
+          const wk=weekdayKeyFromDateStr(defaultISO);
+          if(!sched[wk] || !sched[wk].length) defaultISO="";
+        }
+        if(!defaultISO) defaultISO=getFirstAvailableDate(sched,90);
 
-/* ----------------- INIT DOM ----------------- */
-document.addEventListener("DOMContentLoaded", async () => {
-  const trainerSelect = document.getElementById("trainer");
+        const dateInput=document.getElementById("date");
+        dateInput.value=defaultISO || "";
+        refreshTimeOptionsForDate(sched, dateInput.value);
 
-  let trainerName = qp("trainer");
-  let className = qp("class");
-  let price = qp("price");
-  let dateQ = qp("date");
-  let timeQ = qp("time");
-  let classId = qp("classId");
+        // ใส่เวลาที่มากับ query ถ้าตรง
+        if(preferredTime){
+          const sel=document.getElementById("timeSlot");
+          const has=Array.from(sel.options).some(o=>o.value===preferredTime);
+          if(has) sel.value=preferredTime;
+        }
 
-  if (trainerName) {
-    const opt = Array.from(trainerSelect.options).find(
-      (o) => o.value === trainerName
-    );
-    if (opt) {
-      trainerSelect.value = trainerName;
-      document.getElementById("trainerId").value =
-        opt.getAttribute("data-id") || "";
-    }
-  }
+        dateInput.onchange=(e)=>refreshTimeOptionsForDate(sched,e.target.value);
+      }
 
-  document.getElementById("class").value = className || "";
-  document.getElementById("price").value = price || "";
-  document.getElementById("classId").value = classId || "";
+      /* ----------------- Init ----------------- */
+      document.addEventListener("DOMContentLoaded", async ()=>{
+        const trainerSelect=document.getElementById("trainer");
 
-  trainerSelect.addEventListener("change", async (e) => {
-    const opt = e.target.selectedOptions[0];
-    document.getElementById("trainerId").value =
-      opt.getAttribute("data-id") || "";
-    await loadScheduleAndRefresh(opt.value, "", "");
-    document.getElementById("timeSlot").value = "";
-  });
+        let trainerName=qp("trainer");
+        let className=qp("class");
+        let price=qp("price");
+        let dateQ=qp("date");
+        let timeQ=qp("time");
+        let classId=qp("classId");
 
-  await loadScheduleAndRefresh(trainerName, dateQ, timeQ);
-});
-</script>
+        // ตั้งค่าเริ่มต้น
+        if(trainerName){
+          const opt=Array.from(trainerSelect.options).find(o=>o.value===trainerName);
+          if(opt){
+            trainerSelect.value=trainerName;
+            document.getElementById("trainerId").value=opt.getAttribute("data-id")||"";
+          }
+        }else{
+          document.getElementById("trainerId").value=trainerSelect.selectedOptions[0].getAttribute("data-id")||"";
+          trainerName=trainerSelect.value;
+        }
+
+        document.getElementById("class").value=className||"";
+        document.getElementById("price").value=price||"";
+        document.getElementById("classId").value=classId||"";
+
+        // เมื่อเปลี่ยนเทรนเนอร์
+        trainerSelect.addEventListener("change", async (e)=>{
+          const opt=e.target.selectedOptions[0];
+          document.getElementById("trainerId").value=opt.getAttribute("data-id")||"";
+          await loadScheduleAndRefresh(opt.value,"","");
+          document.getElementById("timeSlot").value="";
+        });
+
+        // โหลดครั้งแรก
+        await loadScheduleAndRefresh(trainerName, dateQ, timeQ);
+      });
+    </script>
+  </body>
+</html>
