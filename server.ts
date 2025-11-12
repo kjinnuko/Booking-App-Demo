@@ -125,10 +125,16 @@ app.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = req.user!;
-      const trainerId = String(req.body.trainerId || "").trim();
-      const classId   = String(req.body.classId   || "").trim();
-      const price     = Number(req.body.price || 0);
+      const trainerId = req.body.trainerId ? Number(req.body.trainerId) : null; // optional
+      const classId   = req.body.classId   ? Number(req.body.classId)   : null; // required
+      const price     = req.body.price     ? Number(req.body.price)     : 0;
 
+      if (!classId || Number.isNaN(classId)) {
+        return res.status(400).send("Missing or invalid classId");
+      }
+      if (Number.isNaN(price)) {
+          return res.status(400).send("Invalid price");
+      }
       const trainerName = String(req.body.trainer || "").trim();
       const className   = String(req.body.class   || "").trim();
 
