@@ -125,7 +125,6 @@ app.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = req.user!;
-      const trainerId = req.body.trainerId ? Number(req.body.trainerId) : null; // optional
       const trainerId = String(req.body.trainerId || "").trim();
       const classId   = String(req.body.classId   || "").trim();
       const price     = Number(req.body.price || 0);
