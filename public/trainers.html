@@ -42,7 +42,7 @@
           CLASSES = await response.json();
           renderClasses();
         } catch (err) {
-          console.error("Failed to load classses:", err);
+          console.error("Failed to load classes:", err);
         }
       }
 
@@ -56,6 +56,16 @@
         root.innerHTML = "";
 
         CLASSES.forEach((c, i) => {
+          const status = (c.status ?? "").toString().trim() || "Available";
+          const statusCls =
+          status.toLowerCase() === "full"
+          ? "bg-red-100 text-red-800"
+          : "bg-green-100 text-green-800";
+          
+          const isFull = status.toLowerCase() === "full";
+          const disabledAttr = isFull ? "disabled" : "";
+          const disabledCss = isFull ? "opacity-50 cursor-not-allowed" : "";
+          
           const card = document.createElement("div");
           card.className = "bg-neutral-100 p-6 rounded-lg shadow-md";
 
@@ -76,9 +86,7 @@
           <span class="bg-purple-100 text-purple-800 px-2 py-1 rounded text-sm">Group: ${
             c.group_size
           }</span>
-           <span class="bg-purple-100 text-red-800 px-2 py-1 rounded text-sm"> Status: ${
-            c.status
-          }</span>
+          <span class="${statusCls} px-2 py-1 rounded text-sm">Status: ${status}</span>
         </div>
  
         <p class="text-gray-600 mb-4">${c.about}</p>
@@ -98,7 +106,14 @@
           </div>
         </details>
 <!--ปุ่ม Book ฟ้า แก้-->
-        <button class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 book-btn" data-idx="${i}">Book </button>
+        <button
+        class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 book-btn ${disabledCss}"
+       data-idx="${i}"
+      ${disabledAttr}
+      >
+      Book
+     </button>
+
       `;
           root.appendChild(card);
         });
@@ -106,6 +121,7 @@
         root.addEventListener("click", (e) => {
           const btn = e.target.closest(".book-btn");
           if (!btn) return;
+          if (btn.hasAttribute("disabled")) return; // Prevent open
           const c = CLASSES[btn.dataset.idx];
           const url = `/booking.html?class=${encodeURIComponent(
             c.name,
