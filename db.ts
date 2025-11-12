@@ -35,7 +35,7 @@ const pool = new Pool({ connectionString: CONNECTION_STRING });
         level TEXT NOT NULL,
         length TEXT NOT NULL,
         group_size TEXT NOT NULL,
-        status TEXT NOT NULL
+       status TEXT NOT NULL DEFAULT 'Available'
       );
     `);
 
@@ -413,7 +413,7 @@ export async function listTrainers(): Promise<any[]> {
     level: r.level,
     length: r.length,
     group_size: r.group_size,
-    status: r.status ??,
+    status: r.status ?? 'Available',
   }));
 }
 
